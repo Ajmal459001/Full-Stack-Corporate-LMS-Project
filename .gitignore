@@ -1,0 +1,13 @@
+# Ignore local video assets
+frontend/public/*.mp4
+
+# Ignore python environment dependencies
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Ignore frontend dependencies
+node_modules/
+.env
+dist/

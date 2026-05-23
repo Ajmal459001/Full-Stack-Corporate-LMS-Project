@@ -369,8 +369,8 @@ class CreateStripeCheckoutSessionView(APIView):
                     'quantity': 1,
                 }],
                 mode='payment',
-                success_url=f"http://localhost:5173/success?course_id={course.id}",
-                cancel_url="http://localhost:5173/catalog",
+                success_url=f"https://full-stack-corporate-lms-project.vercel.app/success?course_id={course.id}",
+                cancel_url="https://full-stack-corporate-lms-project.vercel.app/catalog",
                 client_reference_id=str(request.user.id) 
             )
             return Response({"checkout_url": session.url}, status=status.HTTP_200_OK)

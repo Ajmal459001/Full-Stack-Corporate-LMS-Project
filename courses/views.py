@@ -335,24 +335,39 @@ class RegisterUserView(APIView):
     permission_classes = [AllowAny] 
 
     def post(self, request):
-        username, email, password, role = request.data.get('username'), request.data.get('email'), request.data.get('password'), request.data.get('role', 'EMPLOYEE') 
-        if not username or not password: return Response({"error": "Required fields missing."}, status=status.HTTP_400_BAD_REQUEST)
-        if User.objects.filter(username=username).exists(): return Response({"error": "Username taken."}, status=status.HTTP_400_BAD_REQUEST)
+        username = request.data.get('username')
+        email = request.data.get('email')
+        password = request.data.get('password')
+        role = request.data.get('role', 'EMPLOYEE') 
+        
+        if not username or not password: 
+            return Response({"error": "Required fields missing."}, status=status.HTTP_400_BAD_REQUEST)
+        if User.objects.filter(username=username).exists(): 
+            return Response({"error": "Username taken."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
+            # 1. Create the user and profile
             user = User.objects.create_user(username=username, email=email, password=password)
             UserProfile.objects.create(user=user, role=role.upper())
             
-            # SPRINT 3: Send Welcome Email Pipeline
-            send_mail(
-                subject="Welcome to SkillStream Workspace",
-                message=f"Hi {username},\n\nYour account has been successfully initialized. You can now log in and access your corporate learning workspace.\n\nAssigned Role: {role}\n\nBest,\nThe SkillStream Architecture Team",
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[email],
-                fail_silently=True,
-            )
-
+            # 2. SPRINT 3: Send Welcome Email Pipeline (ISOLATED)
+            if email:  # Only attempt to send if they actually provided an email
+                try:
+                    send_mail(
+                        subject="Welcome to SkillStream Workspace",
+                        message=f"Hi {username},\n\nYour account has been successfully initialized. You can now log in and access your corporate learning workspace.\n\nAssigned Role: {role}\n\nBest,\nThe SkillStream Architecture Team",
+                        from_email=settings.DEFAULT_FROM_EMAIL,
+                        recipient_list=[email],
+                        fail_silently=True,
+                    )
+                except Exception as mail_error:
+                    # This prints the error to your Render logs so you can debug it later, 
+                    # but it STOPS the error from crashing the registration process!
+                    print(f"Warning: Email failed to send - {str(mail_error)}")
+            
+            # 3. Always return success if the user was created
             return Response({"message": "User created successfully."}, status=status.HTTP_201_CREATED)
+            
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 

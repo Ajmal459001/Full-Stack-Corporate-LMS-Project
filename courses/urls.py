@@ -36,8 +36,14 @@ urlpatterns = [
     
     path('analytics/', InstructorAnalyticsView.as_view(), name='instructor_analytics'),
     
+    # 👇 THE FIX: Added 'patch': 'partial_update' to the lesson-detail view 👇
     path('lessons/', LessonViewSet.as_view({'get': 'list', 'post': 'create'}), name='lesson-list'),
-    path('lessons/<int:pk>/', LessonViewSet.as_view({'get': 'retrieve', 'put': 'update', 'delete': 'destroy'}), name='lesson-detail'),
+    path('lessons/<int:pk>/', LessonViewSet.as_view({
+        'get': 'retrieve', 
+        'put': 'update', 
+        'patch': 'partial_update', 
+        'delete': 'destroy'
+    }), name='lesson-detail'),
     
     path('', include(router.urls)),
     

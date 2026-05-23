@@ -19,7 +19,7 @@ const CertificateViewer = () => {
     useEffect(() => {
         const fetchCertificate = async () => {
             try {
-                const res = await axios.get(`http://127.0.0.1:8000/api/courses/certificate/${courseId}/`);
+                const res = await axios.get(`https://skillstream-backend-cxe5.onrender.com/api/courses/certificate/${courseId}/`);
                 setCertData(res.data);
             } catch (err) {
                 if (err.response?.status === 403) {

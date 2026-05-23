@@ -21,7 +21,7 @@ const Success = () => {
         const enrollUser = async () => {
             try {
                 const token = localStorage.getItem('access_token');
-                await axios.post('http://127.0.0.1:8000/api/courses/checkout/success/', 
+                await axios.post('https://skillstream-backend-cxe5.onrender.com/api/courses/checkout/success/', 
                     { course_id: courseId },
                     { headers: { Authorization: `Bearer ${token}` } }
                 );

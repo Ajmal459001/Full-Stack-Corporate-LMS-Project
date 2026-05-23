@@ -40,7 +40,7 @@ const Dashboard = () => {
                 const token = localStorage.getItem('access_token');
                 if (!token) throw new Error("No token found");
 
-                const res = await axios.get('http://127.0.0.1:8000/api/auth/user/', {
+                const res = await axios.get('https://skillstream-backend-cxe5.onrender.com/api/auth/user/', {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 setUserProfile(res.data);
@@ -53,7 +53,7 @@ const Dashboard = () => {
 
     const fetchCourses = useCallback(async () => {
         try {
-            let url = `http://127.0.0.1:8000/api/courses/my_workspace/?search=${search}&page=${currentPage}`;
+            let url = `https://skillstream-backend-cxe5.onrender.com/api/courses/my_workspace/?search=${search}&page=${currentPage}`;
             if (category) url += `&category=${category}`;
             if (difficulty) url += `&difficulty=${difficulty}`;
 
@@ -76,7 +76,7 @@ const Dashboard = () => {
             const newStatsMap = {};
             await Promise.all(loadedCourses.map(async (c) => {
                 try {
-                    const statRes = await axios.get(`http://127.0.0.1:8000/api/courses/stats/${c.id}/`, {
+                    const statRes = await axios.get(`https://skillstream-backend-cxe5.onrender.com/api/courses/stats/${c.id}/`, {
                         headers: { Authorization: `Bearer ${token}` }
                     });
                     newStatsMap[c.id] = {
@@ -117,13 +117,13 @@ const Dashboard = () => {
             const headers = { Authorization: `Bearer ${token}` };
 
             if (editingCourseId) {
-                await axios.patch(`http://127.0.0.1:8000/api/courses/${editingCourseId}/`, formData, { headers });
+                await axios.patch(`https://skillstream-backend-cxe5.onrender.com/api/courses/${editingCourseId}/`, formData, { headers });
                 setNewCourse({ title: '', description: '', category: 'Frontend Web Development', difficulty: 'BEGINNER', price: 49.99, validity_days: 30, thumbnail: null });
                 setEditingCourseId(null);
                 setShowAddForm(false);
                 fetchCourses();
             } else {
-                const res = await axios.post('http://127.0.0.1:8000/api/courses/', formData, { headers });
+                const res = await axios.post('https://skillstream-backend-cxe5.onrender.com/api/courses/', formData, { headers });
                 navigate(`/manage/course/${res.data.id}`);
             }
         } catch (err) {
@@ -150,7 +150,7 @@ const Dashboard = () => {
         if (!window.confirm("Are you absolutely sure you want to delete this course? This cannot be undone.")) return;
         try {
             const token = localStorage.getItem('access_token');
-            await axios.delete(`http://127.0.0.1:8000/api/courses/${courseId}/`, {
+            await axios.delete(`https://skillstream-backend-cxe5.onrender.com/api/courses/${courseId}/`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setCourses(courses.filter(c => c.id !== courseId));

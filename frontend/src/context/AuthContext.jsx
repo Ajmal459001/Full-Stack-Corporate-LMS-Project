@@ -21,7 +21,7 @@ export const AuthProvider = ({ children }) => {
     const loginUser = async (username, password) => {
         try {
             // FIX: Pointing to the new TokenObtainPair endpoint
-            const response = await axios.post('http://127.0.0.1:8000/api/auth/token/', {
+            const response = await axios.post('https://skillstream-backend-cxe5.onrender.com/api/auth/token/', {
                 username,
                 password
             });

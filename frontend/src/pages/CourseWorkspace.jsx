@@ -41,12 +41,12 @@ const CourseWorkspace = () => {
             const token = localStorage.getItem('access_token');
             const config = { headers: { Authorization: `Bearer ${token}` } };
             
-            const userRes = await axios.get('http://127.0.0.1:8000/api/auth/user/', config);
+            const userRes = await axios.get('https://skillstream-backend-cxe5.onrender.com/api/auth/user/', config);
             const role = userRes.data.role?.toUpperCase() || 'EMPLOYEE';
             const hasVIPAccess = role === 'ADMIN' || role === 'INSTRUCTOR';
             setIsVIP(hasVIPAccess);
 
-            const courseRes = await axios.get(`http://127.0.0.1:8000/api/courses/${courseId}/`, config);
+            const courseRes = await axios.get(`https://skillstream-backend-cxe5.onrender.com/api/courses/${courseId}/`, config);
             const fetchedCourse = courseRes.data;
             
             const sortedLessons = (fetchedCourse.lessons || []).sort((a, b) => a.order - b.order);
@@ -68,11 +68,11 @@ const CourseWorkspace = () => {
                 if (!hasVIPAccess) {
                     try {
                         const url = targetLessonId 
-                            ? `http://127.0.0.1:8000/api/courses/progress/${courseId}/?lesson_id=${targetLessonId}`
-                            : `http://127.0.0.1:8000/api/courses/progress/${courseId}/`;
+                            ? `https://skillstream-backend-cxe5.onrender.com/api/courses/progress/${courseId}/?lesson_id=${targetLessonId}`
+                            : `https://skillstream-backend-cxe5.onrender.com/api/courses/progress/${courseId}/`;
                             
                         const progressRes = await axios.get(url, config);
-                        const statsRes = await axios.get(`http://127.0.0.1:8000/api/courses/stats/${courseId}/`, config);
+                        const statsRes = await axios.get(`https://skillstream-backend-cxe5.onrender.com/api/courses/stats/${courseId}/`, config);
                         setStats(statsRes.data);
                         
                         // SPRINT 2 FIX: Automatically populate quizResult if they passed previously!
@@ -124,14 +124,14 @@ const CourseWorkspace = () => {
         const token = localStorage.getItem('access_token');
 
         try {
-            await axios.post(`http://127.0.0.1:8000/api/courses/progress/${courseId}/`, {
+            await axios.post(`https://skillstream-backend-cxe5.onrender.com/api/courses/progress/${courseId}/`, {
                 lesson_id: lessonId,
                 timestamp: timestamp,
                 is_completed: isCompleted 
             }, { headers: { Authorization: `Bearer ${token}` } });
             
             if (!isNavigatingRef.current) {
-                const statsRes = await axios.get(`http://127.0.0.1:8000/api/courses/stats/${courseId}/`, {
+                const statsRes = await axios.get(`https://skillstream-backend-cxe5.onrender.com/api/courses/stats/${courseId}/`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 setStats(statsRes.data);
@@ -192,7 +192,7 @@ const CourseWorkspace = () => {
         setReviewSuccess('');
         try {
             const token = localStorage.getItem('access_token');
-            await axios.post(`http://127.0.0.1:8000/api/courses/course/${courseId}/review/`, reviewData, {
+            await axios.post(`https://skillstream-backend-cxe5.onrender.com/api/courses/course/${courseId}/review/`, reviewData, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setReviewSuccess('Review submitted successfully!');
@@ -217,7 +217,7 @@ const CourseWorkspace = () => {
         setError('');
         try {
             const token = localStorage.getItem('access_token');
-            const res = await axios.post(`http://127.0.0.1:8000/api/courses/quiz/${course.quiz.id}/submit/`, {
+            const res = await axios.post(`https://skillstream-backend-cxe5.onrender.com/api/courses/quiz/${course.quiz.id}/submit/`, {
                 answers: selectedAnswers
             }, { headers: { Authorization: `Bearer ${token}` } });
             

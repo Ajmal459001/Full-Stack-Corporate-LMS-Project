@@ -25,7 +25,7 @@ const Register = () => {
         setError('');
 
         try {
-            await axios.post('http://127.0.0.1:8000/api/courses/register/', formData);
+            await axios.post('https://skillstream-backend-cxe5.onrender.com/api/courses/register/', formData);
             // On success, teleport them to the login page
             navigate('/login', { state: { message: 'Registration successful! Please log in.' } });
         } catch (err) {

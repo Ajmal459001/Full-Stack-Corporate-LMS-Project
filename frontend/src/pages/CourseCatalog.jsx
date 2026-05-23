@@ -26,7 +26,7 @@ const CourseCatalog = () => {
         setIsLoading(true);
         try {
             const token = localStorage.getItem('access_token');
-            const url = `http://127.0.0.1:8000/api/courses/?search=${search}&page=${page}`;
+            const url = `https://skillstream-backend-cxe5.onrender.com/api/courses/?search=${search}&page=${page}`;
 
             const res = await axios.get(url, {
                 headers: { Authorization: `Bearer ${token}` }

@@ -1,16 +1,11 @@
-# React + Vite
+Interactive Quizzes & Assessments: Allow instructors to add multiple-choice quizzes at the end of modules and require a passing grade before issuing a certificate.
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Downloadable Resources: Add a feature to attach PDFs, ZIP files, or starter code to specific lessons.
 
-Currently, two official plugins are available:
+Instructor Revenue Dashboard: Since you have Stripe connected, we can build a financial dashboard for instructors to track their earnings, payouts, and sales volume.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Automated Email Notifications: Set up a system to send welcome emails, payment receipts, and "Certificate Earned" notifications.
 
-## React Compiler
+User Reviews & Ratings: Let students leave 1-to-5 star reviews on courses to build social proof on the public catalog.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Upgrade the UI/UX: Build a "Dark Mode" toggle or improve the dashboard layout with custom CSS/Bootstrap animations.

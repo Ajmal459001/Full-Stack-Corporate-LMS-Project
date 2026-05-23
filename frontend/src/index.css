@@ -1,0 +1,48 @@
+/* frontend/src/index.css */
+
+/* Modern Font & Smooth Scroll */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+body {
+  font-family: 'Inter', sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Fluid Hover Transitions */
+.hover-animate {
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease;
+}
+
+.hover-animate:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.12) !important;
+}
+
+/* Micro-interaction for sidebar items */
+.list-group-item-action {
+  transition: all 0.2s ease-in-out;
+}
+
+/* Subtle fade animation for incoming components */
+.fade-in-up {
+  animation: fadeInUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive custom spacing utilities */
+@media (max-width: 576px) {
+  .display-4 {
+    font-size: 2.25rem !important;
+    font-weight: 800;
+  }
+}

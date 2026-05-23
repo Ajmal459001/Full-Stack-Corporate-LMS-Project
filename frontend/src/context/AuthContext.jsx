@@ -1,3 +1,4 @@
+// frontend/src/context/AuthContext.jsx
 import { createContext, useState, useEffect } from 'react';
 import axios from 'axios';
 
@@ -19,19 +20,21 @@ export const AuthProvider = ({ children }) => {
     // Login Function
     const loginUser = async (username, password) => {
         try {
-            const response = await axios.post('http://127.0.0.1:8000/api/auth/login/', {
+            // FIX: Pointing to the new TokenObtainPair endpoint
+            const response = await axios.post('http://127.0.0.1:8000/api/auth/token/', {
                 username,
                 password
             });
             
             const accessToken = response.data.access;
-            const actualRole = response.data.role; // <-- Grab the real database role from Django!
+            const actualRole = response.data.role; 
             
             setToken(accessToken);
-            setUserRole(actualRole); // <-- Save it in state
+            setUserRole(actualRole); 
             
             localStorage.setItem('access_token', accessToken);
-            localStorage.setItem('user_role', actualRole); // <-- Save it in storage
+            localStorage.setItem('refresh_token', response.data.refresh); // FIX: Store refresh token
+            localStorage.setItem('user_role', actualRole); 
             
             axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
             return { success: true };
@@ -45,6 +48,7 @@ export const AuthProvider = ({ children }) => {
         setToken(null);
         setUserRole(null);
         localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token'); // FIX: Clear refresh token
         localStorage.removeItem('user_role');
         delete axios.defaults.headers.common['Authorization'];
     };

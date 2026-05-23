@@ -1,265 +1,387 @@
-import { useState, useEffect, useContext } from "react";
-import { Container, Row, Col, Card, Form, Button, Badge, InputGroup,} from "react-bootstrap";
-import axios from "axios";
-import AuthContext from "../context/AuthContext";
-import { useNavigate } from "react-router-dom";
+// frontend/src/pages/Dashboard.jsx
+import { useState, useEffect, useCallback, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Container, Row, Col, Card, Badge, Button, Form, Navbar, Pagination, Alert, ProgressBar } from 'react-bootstrap';
+import axios from 'axios';
+import { useTheme } from '../context/ThemeContext';
+import AuthContext from '../context/AuthContext'; 
 
 const Dashboard = () => {
-  const { userRole, logoutUser } = useContext(AuthContext);
-  const [courses, setCourses] = useState([]);
-  const navigate = useNavigate()
+    const navigate = useNavigate();
+    const { isDarkMode, toggleTheme } = useTheme();
+    const { logoutUser } = useContext(AuthContext); 
 
-  // Pagination & Navigation States
-  const [nextPage, setNextPage] = useState(null);
-  const [prevPage, setPrevPage] = useState(null);
-  const [currentPageUrl, setCurrentPageUrl] = useState(
-    "http://127.0.0.1:8000/api/courses/",
-  );
+    const [courses, setCourses] = useState([]);
+    const [statsMap, setStatsMap] = useState({}); // NEW: Holds both progress AND days remaining
+    const [userProfile, setUserProfile] = useState(null);
+    const [error, setError] = useState('');
 
-  // Search and Filter States
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedDifficulty, setSelectedDifficulty] = useState("");
+    const [search, setSearch] = useState('');
+    const [category, setCategory] = useState('');
+    const [difficulty, setDifficulty] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
 
-  // Form state for Instructors
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("");
-  const [difficulty, setDifficulty] = useState("BEGINNER");
+    const [showAddForm, setShowAddForm] = useState(false);
+    const [editingCourseId, setEditingCourseId] = useState(null);
+    const [newCourse, setNewCourse] = useState({
+        title: '',
+        description: '',
+        category: 'Frontend Web Development',
+        difficulty: 'BEGINNER',
+        price: 49.99,         // NEW
+        validity_days: 30,    // NEW
+        thumbnail: null
+    });
 
-  // 1. Fetch courses dynamically based on the current URL configuration
-  const fetchCourses = async (url) => {
-    try {
-      const response = await axios.get(url);
-      setCourses(response.data.results);
-      setNextPage(response.data.next);
-      setPrevPage(response.data.previous);
-    } catch (error) {
-      console.error("Error fetching courses", error);
-    }
-  };
+    useEffect(() => {
+        const fetchUserProfile = async () => {
+            try {
+                const token = localStorage.getItem('access_token');
+                if (!token) throw new Error("No token found");
 
-  // search or difficulty changes!
-  useEffect(() => {
-    let baseUrl = `http://127.0.0.1:8000/api/courses/?search=${searchQuery}`;
-    if (selectedDifficulty) {
-      baseUrl += `&difficulty=${selectedDifficulty}`;
-    }
-    fetchCourses(baseUrl);
-  }, [searchQuery, selectedDifficulty]); // <-- These dependencies tell React to trigger this block on every keypress!
+                const res = await axios.get('http://127.0.0.1:8000/api/auth/user/', {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                setUserProfile(res.data);
+            } catch (err) {
+                console.error("Failed to load user profile");
+            }
+        };
+        fetchUserProfile();
+    }, []);
 
-  // 3. Reset filters
-  const handleResetFilters = () => {
-    setSearchQuery("");
-    setSelectedDifficulty("");
-  };
+    const fetchCourses = useCallback(async () => {
+        try {
+            let url = `http://127.0.0.1:8000/api/courses/my_workspace/?search=${search}&page=${currentPage}`;
+            if (category) url += `&category=${category}`;
+            if (difficulty) url += `&difficulty=${difficulty}`;
 
-  // 4. Handle Course Creation
-  const handleCreateCourse = async (e) => {
-    e.preventDefault();
-    try {
-      await axios.post("http://127.0.0.1:8000/api/courses/", {
-        title,
-        description,
-        category,
-        difficulty,
-      });
-      setTitle("");
-      setDescription("");
-      setCategory("");
-      setDifficulty("BEGINNER");
-      fetchCourses(currentPageUrl);
-    } catch (error) {
-      alert("Error creating course.");
-      console.error(error.response?.data);
-    }
-  };
+            const token = localStorage.getItem('access_token');
+            const res = await axios.get(url, { headers: { Authorization: `Bearer ${token}` }});
 
-  return (
-    <Container className="mt-4">
-      {/* Header bar section */}
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2>SkillStream Dashboard</h2>
-        <div>
-          <Badge bg="info" className="me-3 fs-6">
-            Role: {userRole}
-          </Badge>
-          <Button variant="outline-danger" size="sm" onClick={logoutUser}>
-            Logout
-          </Button>
-        </div>
-      </div>
+            let loadedCourses = [];
+            if (res.data && res.data.results) {
+                loadedCourses = res.data.results;
+                const assumedPageSize = res.data.results.length || 2;
+                setTotalPages(Math.ceil(res.data.count / assumedPageSize));
+            } else if (Array.isArray(res.data)) {
+                loadedCourses = res.data;
+                setTotalPages(1);
+            }
 
-      {/* SEARCH AND FILTER BAR PANEL */}
-      <Card className="mb-4 bg-light shadow-sm border-0">
-        <Card.Body>
-          <div className="row align-items-center g-2">
-            <Col md={7}>
-              <InputGroup size="sm">
-                <InputGroup.Text>Search</InputGroup.Text>
-                <Form.Control
-                  type="text"
-                  placeholder="Start typing to instantly search courses..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)} // <-- Triggers useEffect
-                />
-              </InputGroup>
-            </Col>
-            <Col md={3}>
-              <Form.Select
-                size="sm"
-                value={selectedDifficulty}
-                onChange={(e) => setSelectedDifficulty(e.target.value)}
-              >
-                <option value="">All Difficulty Levels</option>
-                <option value="BEGINNER">Beginner</option>
-                <option value="INTERMEDIATE">Intermediate</option>
-                <option value="ADVANCED">Advanced</option>
-              </Form.Select>
-            </Col>
-            <Col md={2}>
-              <Button
-                variant="outline-secondary"
-                size="sm"
-                type="button"
-                onClick={handleResetFilters}
-                className="w-100"
-              >
-                Clear
-              </Button>
-            </Col>
-          </div>
-        </Card.Body>
-      </Card>
-      <Row>
-        {/* Course Creation Form Panel */}
-        {(userRole === "INSTRUCTOR" || userRole === "ADMIN") && (
-          <Col md={4} className="mb-4">
-            <Card className="shadow-sm">
-              <Card.Body>
-                <Card.Title>Create New Course</Card.Title>
-                <Form onSubmit={handleCreateCourse}>
-                  <Form.Group className="mb-2">
-                    <Form.Label>Title</Form.Label>
-                    <Form.Control
-                      type="text"
-                      required
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                    />
-                  </Form.Group>
-                  <Form.Group className="mb-2">
-                    <Form.Label>Category</Form.Label>
-                    <Form.Control
-                      type="text"
-                      required
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                    />
-                  </Form.Group>
-                  <Form.Group className="mb-2">
-                    <Form.Label>Difficulty</Form.Label>
-                    <Form.Select
-                      value={difficulty}
-                      onChange={(e) => setDifficulty(e.target.value)}
-                    >
-                      <option value="BEGINNER">Beginner</option>
-                      <option value="INTERMEDIATE">Intermediate</option>
-                      <option value="ADVANCED">Advanced</option>
-                    </Form.Select>
-                  </Form.Group>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Description</Form.Label>
-                    <Form.Control
-                      as="textarea"
-                      rows={3}
-                      required
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                    />
-                  </Form.Group>
-                  <Button variant="primary" type="submit" className="w-100">
-                    Publish Course
-                  </Button>
-                </Form>
-              </Card.Body>
-            </Card>
-          </Col>
-        )}
+            setCourses(loadedCourses);
 
-        {/* Main Content Layout showing results list */}
-        <Col md={userRole === "INSTRUCTOR" || userRole === "ADMIN" ? 8 : 12}>
-          <h4 className="mb-3">Available Courses</h4>
-          {courses.length === 0 ? (
-            <p className="text-muted">
-              No courses match your filter parameters.
-            </p>
-          ) : null}
-          <Row>
-            {courses.map((course) => (
-              <Col
-                md={userRole === "INSTRUCTOR" || userRole === "ADMIN" ? 6 : 4}
-                key={course.id}
-                className="mb-3"
-              >
-                <Card className="h-100 shadow-sm">
-                  <Card.Body>
-                    <Badge bg="secondary" className="mb-2">
-                      {course.category}
-                    </Badge>
-                    <Card.Title>{course.title}</Card.Title>
-                    <Card.Text
-                      className="text-muted"
-                      style={{ fontSize: "0.9rem" }}
-                    >
-                      {course.description.substring(0, 80)}...
-                    </Card.Text>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      className="mt-3 w-100"
-                      onClick={() => navigate(`/course/${course.id}`)} // Make sure to import useNavigate from 'react-router-dom' at the top if it's missing!
-                    >
-                      Enter Workspace &rarr;
-                    </Button>
-                  </Card.Body>
-                  <Card.Footer
-                    className="bg-white border-0 text-muted"
-                    style={{ fontSize: "0.8rem" }}
-                  >
-                    Instructor: {course.instructor_username} | Level:{" "}
-                    {course.difficulty}
-                  </Card.Footer>
+            // NEW: Fetch both progress percentage AND days remaining
+            const newStatsMap = {};
+            await Promise.all(loadedCourses.map(async (c) => {
+                try {
+                    const statRes = await axios.get(`http://127.0.0.1:8000/api/courses/stats/${c.id}/`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    newStatsMap[c.id] = {
+                        progress: statRes.data.percentage,
+                        days_remaining: statRes.data.days_remaining
+                    };
+                } catch (e) {
+                    newStatsMap[c.id] = { progress: 0, days_remaining: 0 };
+                }
+            }));
+            setStatsMap(newStatsMap); 
+
+        } catch (err) {
+            console.error("Failed to load courses.", err);
+        }
+    }, [search, category, difficulty, currentPage]);
+
+    useEffect(() => {
+        fetchCourses();
+    }, [fetchCourses]);
+
+    const handleSubmitCourse = async (e) => {
+        e.preventDefault();
+        try {
+            const token = localStorage.getItem('access_token');
+            const formData = new FormData();
+            formData.append('title', newCourse.title);
+            formData.append('description', newCourse.description);
+            formData.append('category', newCourse.category);
+            formData.append('difficulty', newCourse.difficulty);
+            formData.append('price', newCourse.price); // NEW
+            formData.append('validity_days', newCourse.validity_days); // NEW
+
+            if (newCourse.thumbnail) {
+                formData.append('thumbnail', newCourse.thumbnail);
+            }
+
+            const headers = { Authorization: `Bearer ${token}` };
+
+            if (editingCourseId) {
+                await axios.patch(`http://127.0.0.1:8000/api/courses/${editingCourseId}/`, formData, { headers });
+                setNewCourse({ title: '', description: '', category: 'Frontend Web Development', difficulty: 'BEGINNER', price: 49.99, validity_days: 30, thumbnail: null });
+                setEditingCourseId(null);
+                setShowAddForm(false);
+                fetchCourses();
+            } else {
+                const res = await axios.post('http://127.0.0.1:8000/api/courses/', formData, { headers });
+                navigate(`/manage/course/${res.data.id}`);
+            }
+        } catch (err) {
+            setError(editingCourseId ? "Failed to update course." : "Failed to create the course track module.");
+        }
+    };
+
+    const handleEditClick = (course) => {
+        setNewCourse({
+            title: course.title,
+            description: course.description,
+            category: course.category,
+            difficulty: course.difficulty,
+            price: course.price || 49.99,
+            validity_days: course.validity_days || 30,
+            thumbnail: null
+        });
+        setEditingCourseId(course.id);
+        setShowAddForm(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleDeleteCourse = async (courseId) => {
+        if (!window.confirm("Are you absolutely sure you want to delete this course? This cannot be undone.")) return;
+        try {
+            const token = localStorage.getItem('access_token');
+            await axios.delete(`http://127.0.0.1:8000/api/courses/${courseId}/`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setCourses(courses.filter(c => c.id !== courseId));
+            fetchCourses();
+        } catch (err) {
+            setError("Failed to delete the course. Check your permissions.");
+        }
+    };
+
+    return (
+        <div className={`min-vh-100 fade-in-up ${isDarkMode ? 'bg-dark text-light' : 'bg-light text-dark'}`}>
+            <Navbar bg={isDarkMode ? 'dark' : 'white'} className="border-bottom py-3 mb-4 shadow-sm">
+                <Container>
+                    <Navbar.Brand className={`fw-bold ${isDarkMode ? 'text-white' : 'text-dark'}`}>
+                        SkillStream<span className="text-primary">.</span> Workspace
+                    </Navbar.Brand>
+                    <div className="d-flex align-items-center gap-3">
+                        {userProfile && (
+                            <div className="d-flex align-items-center gap-2 me-2">
+                                <span className="small text-muted fw-medium">{userProfile.username}</span>
+                                <Badge bg={userProfile.role?.toUpperCase() === 'ADMIN' ? 'danger' : 'success'} className="rounded-pill px-2 py-1 uppercase small">
+                                    {userProfile.role || 'Instructor'}
+                                </Badge>
+                            </div>
+                        )}
+                        <Button variant={isDarkMode ? 'outline-warning' : 'outline-dark'} onClick={toggleTheme} style={{ width: '40px', height: '40px' }} className="rounded-circle px-2 py-1">
+                            {isDarkMode ? '☀️' : '🌙'}
+                        </Button>
+                        <Button variant="outline-danger" size="sm" className="rounded-pill px-3" onClick={() => { logoutUser(); navigate('/'); }}>Logout</Button>
+                    </div>
+                </Container>
+            </Navbar>
+
+            <Container className="pb-5">
+                {error && <Alert variant="warning" onClose={() => setError('')} dismissible>{error}</Alert>}
+
+                {userProfile && (userProfile.role?.toUpperCase() === 'ADMIN' || userProfile.role?.toUpperCase() === 'INSTRUCTOR') && (
+                    <div className="mb-4 text-end">
+                        <Button
+                            variant={showAddForm ? "outline-secondary" : "primary"}
+                            className="rounded-pill px-4 fw-medium shadow-sm"
+                            onClick={() => {
+                                setShowAddForm(!showAddForm);
+                                setEditingCourseId(null);
+                                setNewCourse({ title: '', description: '', category: 'Frontend Web Development', difficulty: 'BEGINNER', price: 49.99, validity_days: 30, thumbnail: null });
+                            }}
+                        >
+                            {showAddForm ? "Cancel Form" : "➕ Create New Course Track"}
+                        </Button>
+                        <Button variant="outline-info" className="rounded-pill px-4 fw-medium shadow-sm ms-2" onClick={() => navigate('/analytics')}>
+                            📊 View Analytics
+                        </Button>
+                    </div>
+                )}
+
+                {userProfile && userProfile.role?.toUpperCase() === 'EMPLOYEE' && (
+                    <div className="mb-4 text-center text-md-start">
+                        <Button variant="primary" size="lg" className="rounded-pill px-5 py-3 fw-bold shadow-sm w-100 w-md-auto" onClick={() => navigate('/catalog')}>
+                            Browse Course Catalog 📚
+                        </Button>
+                    </div>
+                )}
+
+                {showAddForm && (
+                    <Card className={`border-0 shadow-sm p-4 mb-4 rounded-4 fade-in-up ${isDarkMode ? 'bg-secondary bg-opacity-25 text-white' : 'bg-white'}`}>
+                        <Card.Body>
+                            <h5 className="fw-bold mb-3">{editingCourseId ? "✏️ Update Training Module" : "Publish New Training Module"}</h5>
+                            <Form onSubmit={handleSubmitCourse}>
+                                <Row className="g-3">
+                                    <Col xs={12} md={6}>
+                                        <Form.Group>
+                                            <Form.Label className="small fw-semibold">Course Title</Form.Label>
+                                            <Form.Control type="text" required value={newCourse.title} onChange={(e) => setNewCourse({ ...newCourse, title: e.target.value })} className={isDarkMode ? 'bg-dark text-white border-secondary' : ''} />
+                                        </Form.Group>
+                                    </Col>
+                                    <Col xs={6} md={3}>
+                                        <Form.Group>
+                                            <Form.Label className="small fw-semibold">Category</Form.Label>
+                                            <Form.Select value={newCourse.category} onChange={(e) => setNewCourse({ ...newCourse, category: e.target.value })} className={isDarkMode ? 'bg-dark text-white border-secondary' : ''}>
+                                                <option value="Frontend Web Development">Frontend Web Development</option>
+                                                <option value="Backend Development">Backend Development</option>
+                                            </Form.Select>
+                                        </Form.Group>
+                                    </Col>
+                                    <Col xs={6} md={3}>
+                                        <Form.Group>
+                                            <Form.Label className="small fw-semibold">Difficulty Level</Form.Label>
+                                            <Form.Select value={newCourse.difficulty} onChange={(e) => setNewCourse({ ...newCourse, difficulty: e.target.value })} className={isDarkMode ? 'bg-dark text-white border-secondary' : ''}>
+                                                <option value="BEGINNER">Beginner</option>
+                                                <option value="INTERMEDIATE">Intermediate</option>
+                                                <option value="ADVANCED">Advanced</option>
+                                            </Form.Select>
+                                        </Form.Group>
+                                    </Col>
+
+                                    {/* NEW: Price and Validity Inputs */}
+                                    <Col xs={6} md={3}>
+                                        <Form.Group>
+                                            <Form.Label className="small fw-semibold">Price ($)</Form.Label>
+                                            <Form.Control type="number" step="0.01" min="0" required value={newCourse.price} onChange={(e) => setNewCourse({ ...newCourse, price: e.target.value })} className={isDarkMode ? 'bg-dark text-white border-secondary' : ''} />
+                                        </Form.Group>
+                                    </Col>
+                                    <Col xs={6} md={3}>
+                                        <Form.Group>
+                                            <Form.Label className="small fw-semibold">Access Duration (Days)</Form.Label>
+                                            <Form.Control type="number" min="1" required value={newCourse.validity_days} onChange={(e) => setNewCourse({ ...newCourse, validity_days: e.target.value })} className={isDarkMode ? 'bg-dark text-white border-secondary' : ''} />
+                                        </Form.Group>
+                                    </Col>
+
+                                    <Col xs={12} md={6}>
+                                        <Form.Group>
+                                            <Form.Label className="small fw-semibold">
+                                                {editingCourseId ? "Update Thumbnail Image (Leave blank to keep current)" : "Course Thumbnail Image"}
+                                            </Form.Label>
+                                            <Form.Control type="file" accept="image/*" onChange={(e) => setNewCourse({ ...newCourse, thumbnail: e.target.files[0] })} className={isDarkMode ? 'bg-dark text-white border-secondary' : ''} />
+                                        </Form.Group>
+                                    </Col>
+                                    
+                                    <Col xs={12}>
+                                        <Form.Group className="mt-2">
+                                            <Form.Label className="small fw-semibold">Description Summary</Form.Label>
+                                            <Form.Control as="textarea" rows={3} required value={newCourse.description} onChange={(e) => setNewCourse({ ...newCourse, description: e.target.value })} className={isDarkMode ? 'bg-dark text-white border-secondary' : ''} />
+                                        </Form.Group>
+                                    </Col>
+                                </Row>
+                                <Button variant={editingCourseId ? "warning" : "success"} type="submit" className="rounded-pill px-4 mt-3 float-end">
+                                    {editingCourseId ? "Save Changes" : "Commit & Publish Module"}
+                                </Button>
+                            </Form>
+                        </Card.Body>
+                    </Card>
+                )}
+
+                <Card className={`border-0 shadow-sm p-3 mb-4 rounded-4 ${isDarkMode ? 'bg-secondary bg-opacity-25' : 'bg-white'}`}>
+                    <Card.Body>
+                        <Row className="g-3">
+                            <Col xs={12} md={6} lg={4}>
+                                <Form.Control type="text" placeholder="Search matching course tracks..." value={search} onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }} className={isDarkMode ? 'bg-dark text-white border-secondary' : ''} />
+                            </Col>
+                            <Col xs={6} md={3} lg={4}>
+                                <Form.Select value={category} onChange={(e) => { setCategory(e.target.value); setCurrentPage(1); }} className={isDarkMode ? 'bg-dark text-white border-secondary' : ''}>
+                                    <option value="">All Categories</option>
+                                    <option value="Frontend Web Development">Frontend</option>
+                                    <option value="Backend Development">Backend</option>
+                                </Form.Select>
+                            </Col>
+                            <Col xs={6} md={3} lg={4}>
+                                <Form.Select value={difficulty} onChange={(e) => { setDifficulty(e.target.value); setCurrentPage(1); }} className={isDarkMode ? 'bg-dark text-white border-secondary' : ''}>
+                                    <option value="">All Levels</option>
+                                    <option value="BEGINNER">Beginner</option>
+                                    <option value="INTERMEDIATE">Intermediate</option>
+                                    <option value="ADVANCED">Advanced</option>
+                                </Form.Select>
+                            </Col>
+                        </Row>
+                    </Card.Body>
                 </Card>
-              </Col>
-            ))}
-          </Row>
 
-          {/* PAGINATION INTERACTION CONTROLS */}
-          <div className="d-flex justify-content-between align-items-center mt-3">
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={!prevPage}
-              onClick={() => setCurrentPageUrl(prevPage)}
-            >
-              &larr; Previous Page
-            </Button>
-            <span className="text-muted" style={{ fontSize: "0.85rem" }}>
-              Dynamic Batching
-            </span>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={!nextPage}
-              onClick={() => setCurrentPageUrl(nextPage)}
-            >
-              Next Page &rarr;
-            </Button>
-          </div>
-        </Col>
-      </Row>
-    </Container>
-  );
+                <h4 className="mb-4 fw-bold">Your Workspace</h4>
+
+                <Row xs={1} md={2} lg={3} className="g-4 mb-4">
+                    {courses.map((course) => (
+                        <Col key={course.id}>
+                            <Card className={`h-100 border-0 shadow-sm rounded-4 overflow-hidden position-relative hover-animate ${isDarkMode ? 'bg-secondary bg-opacity-25 text-white' : 'bg-white text-dark'}`}>
+                                {userProfile && (userProfile.role?.toUpperCase() === 'ADMIN' || userProfile.username === course.instructor_username) && (
+                                    <div className="position-absolute top-0 end-0 p-2 d-flex gap-2 z-index-1" style={{ zIndex: 10 }}>
+                                        <Button variant="warning" size="sm" className="rounded-circle shadow" style={{ width: '32px', height: '32px', padding: 0 }} onClick={() => handleEditClick(course)}>✏️</Button>
+                                        <Button variant="danger" size="sm" className="rounded-circle shadow" style={{ width: '32px', height: '32px', padding: 0 }} onClick={() => handleDeleteCourse(course.id)}>🗑️</Button>
+                                    </div>
+                                )}
+
+                                {course.thumbnail ? (
+                                    <Card.Img variant="top" src={course.thumbnail} style={{ height: '180px', objectFit: 'cover' }} />
+                                ) : (
+                                    <div className="bg-primary bg-opacity-10 w-100 d-flex align-items-center justify-content-center" style={{ height: '180px' }}>
+                                        <span className="text-primary fw-bold opacity-50">No Cover Available</span>
+                                    </div>
+                                )}
+
+                                <Card.Body className="d-flex flex-column p-4">
+                                    <Badge bg="primary" className="mb-3 align-self-start rounded-pill px-3 py-2" style={{ fontSize: '0.75rem' }}>{course.category}</Badge>
+                                    <h5 className="fw-bold mb-2">{course.title}</h5>
+
+                                    <div className="d-flex gap-2 mt-2 mb-3">
+                                        <Badge bg="success" className="px-2 py-1 fs-6">${course.price || "49.99"}</Badge>
+                                        <Badge bg="secondary" className="px-2 py-1 fs-6">📅 {course.validity_days || "30"} Days Access</Badge>
+                                    </div>
+                                    
+                                    <div className="d-flex justify-content-between align-items-center mt-auto pt-3 border-top border-light border-opacity-10">
+                                        <small className="text-muted">By {course.instructor_username || 'Instructor'}</small>
+                                        <Badge bg={course.difficulty === 'ADVANCED' ? 'danger' : 'secondary'} className="rounded-pill">{course.difficulty}</Badge>
+                                    </div>
+
+                                    {/* NEW: Employee Progress AND Countdown Tracker! */}
+                                    {statsMap[course.id] !== undefined && userProfile?.role?.toUpperCase() === 'EMPLOYEE' && (
+                                        <div className="mt-3 bg-dark p-3 rounded-3 border border-secondary">
+                                            <div className="d-flex justify-content-between align-items-center mb-2">
+                                                <Badge bg="warning" text="dark" className="rounded-pill">
+                                                    ⏳ {statsMap[course.id].days_remaining} Days Left
+                                                </Badge>
+                                                <small className="fw-bold text-success">{statsMap[course.id].progress}% Done</small>
+                                            </div>
+                                            <ProgressBar now={statsMap[course.id].progress} variant={statsMap[course.id].progress === 100 ? "success" : "primary"} style={{ height: '6px' }} className="rounded-pill" />
+                                        </div>
+                                    )}
+
+                                    <Button variant={isDarkMode ? 'light' : 'dark'} size="sm" className="mt-3 w-100 rounded-pill py-2 fw-medium shadow-sm" onClick={() => navigate(`/course/${course.id}`)}>
+                                        Enter Workspace &rarr;
+                                    </Button>
+                                </Card.Body>
+                            </Card>
+                        </Col>
+                    ))}
+                </Row>
+
+                {courses.length === 0 && <div className="text-center py-5 text-muted">No modules found. Head to the catalog to enroll!</div>}
+
+                <div className="d-flex justify-content-center mt-5">
+                    <Pagination>
+                        <Pagination.Prev onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} />
+                        {[...Array(totalPages).keys()].map((pageIdx) => (
+                            <Pagination.Item key={pageIdx + 1} active={currentPage === pageIdx + 1} onClick={() => setCurrentPage(pageIdx + 1)}>
+                                {pageIdx + 1}
+                            </Pagination.Item>
+                        ))}
+                        <Pagination.Next onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages || totalPages <= 1} />
+                    </Pagination>
+                </div>
+            </Container>
+        </div>
+    );
 };
 
 export default Dashboard;

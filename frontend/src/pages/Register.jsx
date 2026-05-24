@@ -3,11 +3,11 @@ import { useState } from 'react';
 import { Container, Row, Col, Card, Form, Button, Alert, ButtonGroup } from 'react-bootstrap';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
-import { useTheme } from '../context/ThemeContext'; // NEW: Import Theme Context
+import { useTheme } from '../context/ThemeContext'; 
 
 const Register = () => {
     const navigate = useNavigate();
-    const { isDarkMode } = useTheme(); // NEW: Grab Theme State
+    const { isDarkMode } = useTheme(); 
     
     const [formData, setFormData] = useState({
         username: '',
@@ -26,7 +26,6 @@ const Register = () => {
 
         try {
             await axios.post('https://skillstream-backend-cxe5.onrender.com/api/courses/register/', formData);
-            // On success, teleport them to the login page
             navigate('/login', { state: { message: 'Registration successful! Please log in.' } });
         } catch (err) {
             setError(err.response?.data?.error || "Registration failed. Please try again.");
@@ -36,25 +35,47 @@ const Register = () => {
     };
 
     return (
-        <div className={`min-vh-100 d-flex align-items-center justify-content-center fade-in-up py-5 ${isDarkMode ? 'bg-dark' : 'bg-light'}`}>
+        <div 
+            className="min-vh-100 d-flex align-items-center justify-content-center fade-in-up py-5"
+            style={{ 
+                backgroundColor: isDarkMode ? '#0f172a' : '#f0f4f8', 
+                color: isDarkMode ? '#f8fafc' : '#0f172a' 
+            }}
+        >
+            <style>
+                {`
+                .glass-card {
+                    background: ${isDarkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(255, 255, 255, 0.4)'};
+                    backdrop-filter: blur(20px);
+                    -webkit-backdrop-filter: blur(20px);
+                    border: 1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.8)'};
+                    box-shadow: 0 8px 32px 0 ${isDarkMode ? 'rgba(0, 0, 0, 0.5)' : 'rgba(31, 38, 135, 0.08)'};
+                }
+                `}
+            </style>
+
             <Container>
                 <Row className="justify-content-center">
                     <Col md={6} lg={5}>
                         <div className="text-center mb-4">
-                            <div className="d-inline-flex align-items-center justify-content-center bg-primary text-white rounded p-2 mb-3 shadow-sm" style={{ width: '50px', height: '50px', fontSize: '24px', fontWeight: 'bold' }}>
-                                S
-                            </div>
-                            <h2 className={`fw-bold letter-spacing-1 text-uppercase ${isDarkMode ? 'text-light' : 'text-dark'}`}>SkillStream</h2>
-                            <p className="text-muted">Create your account to get started.</p>
+                            {/* NEW: Wrapped logo in a Link to redirect to Landing Page */}
+                            <Link to="/">
+                                <img 
+                                    src="/skillstream-logo-full.png" 
+                                    alt="SkillStream Logo" 
+                                    className="img-fluid mb-3" 
+                                    style={{ maxHeight: '70px', objectFit: 'contain', cursor: 'pointer' }} 
+                                />
+                            </Link>
+                            <p className="text-muted fw-medium">Create your account to get started.</p>
                         </div>
 
-                        <Card className={`border shadow-lg rounded-4 overflow-hidden ${isDarkMode ? 'bg-dark text-light border-secondary' : 'bg-white text-dark border-light'}`}>
+                        <Card className="glass-card border-0 rounded-4 overflow-hidden">
                             <Card.Body className="p-5">
                                 {error && <Alert variant="danger" className="rounded-3">{error}</Alert>}
                                 
                                 <Form onSubmit={handleSubmit}>
                                     
-                                    {/* Role Selector Toggle */}
                                     <Form.Group className="mb-4 text-center">
                                         <Form.Label className="small fw-semibold text-muted text-uppercase letter-spacing-1 d-block mb-2">I am registering as an:</Form.Label>
                                         <ButtonGroup className="w-100 shadow-sm">

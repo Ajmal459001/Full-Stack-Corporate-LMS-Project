@@ -3,7 +3,7 @@ import { useState, useContext } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { Form, Button, Container, Card, Alert, Row, Col } from 'react-bootstrap';
 import AuthContext from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext'; // NEW: Import Theme Context
+import { useTheme } from '../context/ThemeContext'; 
 
 const Login = () => {
     const [username, setUsername] = useState('');
@@ -14,9 +14,8 @@ const Login = () => {
     const { loginUser } = useContext(AuthContext);
     const navigate = useNavigate();
     const location = useLocation();
-    const { isDarkMode } = useTheme(); // NEW: Grab Theme State
+    const { isDarkMode } = useTheme(); 
     
-    // Catch the success message if they just registered!
     const successMessage = location.state?.message;
 
     const handleSubmit = async (e) => {
@@ -39,20 +38,42 @@ const Login = () => {
     };
 
     return (
-        <div className={`min-vh-100 d-flex align-items-center justify-content-center fade-in-up py-5 ${isDarkMode ? 'bg-dark' : 'bg-light'}`}>
+        <div 
+            className="min-vh-100 d-flex align-items-center justify-content-center fade-in-up py-5"
+            style={{ 
+                backgroundColor: isDarkMode ? '#0f172a' : '#f0f4f8', 
+                color: isDarkMode ? '#f8fafc' : '#0f172a' 
+            }}
+        >
+            <style>
+                {`
+                .glass-card {
+                    background: ${isDarkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(255, 255, 255, 0.4)'};
+                    backdrop-filter: blur(20px);
+                    -webkit-backdrop-filter: blur(20px);
+                    border: 1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.8)'};
+                    box-shadow: 0 8px 32px 0 ${isDarkMode ? 'rgba(0, 0, 0, 0.5)' : 'rgba(31, 38, 135, 0.08)'};
+                }
+                `}
+            </style>
+
             <Container>
                 <Row className="justify-content-center">
                     <Col md={6} lg={5}>
-                        {/* Logo and Header Block */}
                         <div className="text-center mb-4">
-                            <div className="d-inline-flex align-items-center justify-content-center bg-primary text-white rounded p-2 mb-3 shadow-sm" style={{ width: '50px', height: '50px', fontSize: '24px', fontWeight: 'bold' }}>
-                                S
-                            </div>
-                            <h2 className={`fw-bold letter-spacing-1 text-uppercase ${isDarkMode ? 'text-light' : 'text-dark'}`}>SkillStream</h2>
-                            <p className="text-muted">Welcome back. Please sign in to continue.</p>
+                            {/* NEW: Wrapped logo in a Link to redirect to Landing Page */}
+                            <Link to="/">
+                                <img 
+                                    src="/skillstream-logo-full.png" 
+                                    alt="SkillStream Logo" 
+                                    className="img-fluid mb-3" 
+                                    style={{ maxHeight: '70px', objectFit: 'contain', cursor: 'pointer' }} 
+                                />
+                            </Link>
+                            <p className="text-muted fw-medium">Welcome back. Please sign in to continue.</p>
                         </div>
 
-                        <Card className={`border shadow-lg rounded-4 overflow-hidden ${isDarkMode ? 'bg-dark text-light border-secondary' : 'bg-white text-dark border-light'}`}>
+                        <Card className="glass-card border-0 rounded-4 overflow-hidden">
                             <Card.Body className="p-5">
                                 {successMessage && <Alert variant="success" className="rounded-3">{successMessage}</Alert>}
                                 {error && <Alert variant="danger" className="rounded-3">{error}</Alert>}

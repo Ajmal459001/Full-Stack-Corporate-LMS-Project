@@ -14,6 +14,7 @@ const CourseManager = () => {
     const [course, setCourse] = useState(null);
     const [lessons, setLessons] = useState([]);
     const [error, setError] = useState('');
+    const [successMsg, setSuccessMsg] = useState(''); // NEW: Success message state
     const [activeTab, setActiveTab] = useState('curriculum'); // Tab toggle state
     
     // Curriculum States
@@ -63,14 +64,16 @@ const CourseManager = () => {
         e.preventDefault();
         setIsSubmitting(true);
         setError('');
+        setSuccessMsg(''); // Clear previous success messages
+        
         try {
             const config = getAuthHeaders();
             if (editingLessonId) {
                 // UPDATE EXISTING LESSON
                 await axios.patch(`https://skillstream-backend-cxe5.onrender.com/api/courses/lessons/${editingLessonId}/`, newLesson, config);
                 
-                // 1. Show success prompt
-                alert("Lesson updated successfully!"); 
+                // 1. Show success prompt inline
+                setSuccessMsg("Lesson updated successfully!"); 
                 
                 // 2. Close the editor and reset states
                 handleCancelEdit(); 
@@ -78,8 +81,8 @@ const CourseManager = () => {
                 // CREATE NEW LESSON
                 await axios.post(`https://skillstream-backend-cxe5.onrender.com/api/courses/lessons/`, { course: courseId, ...newLesson }, config);
                 
-                // 1. Show success prompt
-                alert("New lesson added successfully!");
+                // 1. Show success prompt inline
+                setSuccessMsg("New lesson added successfully!");
                 
                 // 2. Reset the form for the next lesson
                 setNewLesson({ title: '', video_url: '', order: lessons.length + 2 });
@@ -195,7 +198,9 @@ const CourseManager = () => {
                 </Col>
 
                 <Col md={8}>
+                    {/* Error and Success Banners */}
                     {error && <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert>}
+                    {successMsg && <Alert variant="success" onClose={() => setSuccessMsg('')} dismissible>{successMsg}</Alert>}
                     
                     {/* Tab Navigation System */}
                     <ButtonGroup className="w-100 mb-4 shadow-sm rounded-pill overflow-hidden">

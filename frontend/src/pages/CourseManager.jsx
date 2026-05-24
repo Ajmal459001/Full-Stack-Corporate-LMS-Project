@@ -66,14 +66,33 @@ const CourseManager = () => {
         try {
             const config = getAuthHeaders();
             if (editingLessonId) {
+                // UPDATE EXISTING LESSON
                 await axios.patch(`https://skillstream-backend-cxe5.onrender.com/api/courses/lessons/${editingLessonId}/`, newLesson, config);
-                await fetchCourseData();
+                
+                // 1. Show success prompt
+                alert("Lesson updated successfully!"); 
+                
+                // 2. Close the editor and reset states
+                handleCancelEdit(); 
             } else {
+                // CREATE NEW LESSON
                 await axios.post(`https://skillstream-backend-cxe5.onrender.com/api/courses/lessons/`, { course: courseId, ...newLesson }, config);
+                
+                // 1. Show success prompt
+                alert("New lesson added successfully!");
+                
+                // 2. Reset the form for the next lesson
                 setNewLesson({ title: '', video_url: '', order: lessons.length + 2 });
-                await fetchCourseData(); 
             }
-        } catch (err) { setError("Failed to save lesson."); } finally { setIsSubmitting(false); }
+            
+            // 3. Refresh the UI to show the latest database changes
+            await fetchCourseData(); 
+            
+        } catch (err) { 
+            setError("Failed to save lesson."); 
+        } finally { 
+            setIsSubmitting(false); 
+        }
     };
 
     const handleEditClick = (lesson) => {

@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Badge, Form, InputGroup, Spinner, Pagination, Modal, ListGroup } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api'; // FIXED: Swapped raw axios for central API instance
 import { useTheme } from '../context/ThemeContext';
 
 const CourseCatalog = () => {
@@ -12,7 +12,6 @@ const CourseCatalog = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     
-    // Modal state for viewing reviews
     const [selectedCourse, setSelectedCourse] = useState(null);
     
     const { isDarkMode } = useTheme();
@@ -25,17 +24,14 @@ const CourseCatalog = () => {
     const fetchCourses = async (search = '', page = 1) => {
         setIsLoading(true);
         try {
-            const token = localStorage.getItem('access_token');
-            const url = `https://skillstream-backend-cxe5.onrender.com/api/courses/?search=${search}&page=${page}`;
-
-            const res = await axios.get(url, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            // FIXED: Stripped hardcoded localhost URL and removed manual token headers
+            const url = `/api/courses/?search=${search}&page=${page}`;
+            const res = await api.get(url);
 
             if (res.data && res.data.results) {
                 setCourses(res.data.results);
-                const itemsPerPage = res.data.results.length || 2;
-                setTotalPages(Math.ceil(res.data.count / itemsPerPage));
+                const PAGE_SIZE = 6; 
+                setTotalPages(Math.ceil(res.data.count / PAGE_SIZE));
             } else {
                 setCourses(Array.isArray(res.data) ? res.data : []);
                 setTotalPages(1);
@@ -119,6 +115,20 @@ const CourseCatalog = () => {
                         </Col>
                     ))}
                 </Row>
+            )}
+
+            {totalPages > 1 && (
+                <div className="d-flex justify-content-center mt-5">
+                    <Pagination>
+                        <Pagination.Prev onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} />
+                        {[...Array(totalPages).keys()].map((pageIdx) => (
+                            <Pagination.Item key={pageIdx + 1} active={currentPage === pageIdx + 1} onClick={() => setCurrentPage(pageIdx + 1)}>
+                                {pageIdx + 1}
+                            </Pagination.Item>
+                        ))}
+                        <Pagination.Next onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} />
+                    </Pagination>
+                </div>
             )}
 
             {/* Review Modal */}

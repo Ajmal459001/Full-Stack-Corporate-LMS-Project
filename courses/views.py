@@ -76,6 +76,7 @@ class CourseViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
+
 class LessonViewSet(viewsets.ModelViewSet):
     serializer_class = LessonSerializer
     permission_classes = [IsAuthenticated, IsInstructorOrReadOnly]
@@ -220,6 +221,7 @@ class TrackProgressView(APIView):
             
         return Response({"message": "Progress saved natively"}, status=status.HTTP_200_OK)
 
+
 class CourseCompletionStatsView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -227,15 +229,31 @@ class CourseCompletionStatsView(APIView):
         try:
             course = Course.objects.get(id=course_id)
             total_lessons = course.lessons.count()
-            if total_lessons == 0: return Response({"percentage": 0, "completed_lessons": [], "days_remaining": 0}, status=status.HTTP_200_OK)
-
+            
+            # Fetch the user's enrollment early
             enrollments = Enrollment.objects.filter(user=request.user, course_id=course_id)
-            completed_lesson_ids = list(set([e.last_watched_lesson.id for e in enrollments if e.is_completed and e.last_watched_lesson]))
-            percentage = int((len(completed_lesson_ids) / total_lessons) * 100)
+            
+            # 1. Calculate Progress (Handle the 0 lessons case here, without exiting early)
+            if total_lessons == 0:
+                percentage = 0
+                completed_lesson_ids = []
+            else:
+                completed_lesson_ids = list(set([e.last_watched_lesson.id for e in enrollments if e.is_completed and e.last_watched_lesson]))
+                percentage = int((len(completed_lesson_ids) / total_lessons) * 100)
 
-            enrollment = enrollments.first()
-            days_remaining = max(0, (enrollment.expires_at - timezone.now()).days) if enrollment and enrollment.expires_at else 0
+            # 2. Calculate Accurate Time Remaining
+            enrollment = enrollments.order_by('-expires_at').first()
+            
+            if enrollment and enrollment.expires_at:
+                time_remaining = enrollment.expires_at - timezone.now()
+                days_remaining = max(0, time_remaining.days)
+                is_expiring_soon = 0 <= time_remaining.total_seconds() < 86400
+            else:
+                # Fallback for Admins/Instructors viewing a course without a formal student enrollment
+                days_remaining = course.validity_days
+                is_expiring_soon = False
 
+            # 3. Calculate Quiz Status
             quiz_passed = False
             best_score = 0
             if hasattr(course, 'quiz'):
@@ -245,12 +263,17 @@ class CourseCompletionStatsView(APIView):
                     quiz_passed = attempts.filter(passed=True).exists()
 
             return Response({
-                "percentage": percentage, "completed_lessons": completed_lesson_ids, "days_remaining": days_remaining,
-                "quiz_passed": quiz_passed, "best_score": best_score
+                "percentage": percentage, 
+                "completed_lessons": completed_lesson_ids, 
+                "days_remaining": days_remaining,
+                "is_expiring_soon": is_expiring_soon,
+                "quiz_passed": quiz_passed, 
+                "best_score": best_score
             }, status=status.HTTP_200_OK)
             
         except Course.DoesNotExist:
              return Response({"error": "Course not found"}, status=status.HTTP_404_NOT_FOUND)
+
 
 class IssueCertificateView(APIView):
     permission_classes = [IsAuthenticated]
@@ -384,8 +407,9 @@ class CreateStripeCheckoutSessionView(APIView):
                     'quantity': 1,
                 }],
                 mode='payment',
-                success_url=f"https://full-stack-corporate-lms-project.vercel.app/success?course_id={course.id}",
-                cancel_url="https://full-stack-corporate-lms-project.vercel.app/catalog",
+                # FIXED: Dynamically route back to local or production
+                success_url=f"{settings.FRONTEND_URL}/success?course_id={course.id}",
+                cancel_url=f"{settings.FRONTEND_URL}/catalog",
                 client_reference_id=str(request.user.id) 
             )
             return Response({"checkout_url": session.url}, status=status.HTTP_200_OK)
@@ -422,5 +446,19 @@ class StripeSuccessEnrollmentView(APIView):
                 )
             
             return Response({"message": "Successfully enrolled!"}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class UnenrollCourseView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, course_id):
+        try:
+            # Delete all enrollment records for this user and course
+            deleted_count, _ = Enrollment.objects.filter(user=request.user, course_id=course_id).delete()
+            if deleted_count > 0:
+                return Response({"message": "Successfully unsubscribed."}, status=status.HTTP_200_OK)
+            return Response({"error": "Enrollment not found."}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

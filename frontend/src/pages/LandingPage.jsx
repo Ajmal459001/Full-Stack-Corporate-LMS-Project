@@ -1,4 +1,3 @@
-// frontend/src/pages/LandingPage.jsx
 import { useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Container, Row, Col, Button, Navbar, Card } from 'react-bootstrap';

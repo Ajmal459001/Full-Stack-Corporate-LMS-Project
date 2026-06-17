@@ -1,4 +1,3 @@
-// frontend/src/pages/Checkout.jsx
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Container, Card, Button, Spinner, Badge } from 'react-bootstrap';
@@ -18,7 +17,7 @@ const Checkout = () => {
         const fetchCourse = async () => {
             try {
                 const token = localStorage.getItem('access_token');
-                const res = await axios.get(`https://skillstream-backend-cxe5.onrender.com/api/courses/${id}/`, {
+                const res = await axios.get(`http://localhost:8000/api/courses/${id}/`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 setCourse(res.data);
@@ -35,7 +34,7 @@ const Checkout = () => {
         setIsProcessing(true);
         try {
             const token = localStorage.getItem('access_token');
-            const res = await axios.post(`https://skillstream-backend-cxe5.onrender.com/api/courses/checkout/create-session/${id}/`, {}, {
+            const res = await axios.post(`http://localhost:8000/api/courses/checkout/create-session/${id}/`, {}, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             

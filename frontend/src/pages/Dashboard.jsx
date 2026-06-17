@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Container, Row, Col, Card, Badge, Button, Form, Navbar, Pagination, Alert, ProgressBar } from 'react-bootstrap';
-import axios from 'axios';
+import api from '../api'; // FIXED: Replaced raw axios with your custom instance
 import { useTheme } from '../context/ThemeContext';
 import AuthContext from '../context/AuthContext'; 
 
@@ -12,7 +12,7 @@ const Dashboard = () => {
     const { logoutUser } = useContext(AuthContext); 
 
     const [courses, setCourses] = useState([]);
-    const [statsMap, setStatsMap] = useState({}); // NEW: Holds both progress AND days remaining
+    const [statsMap, setStatsMap] = useState({}); 
     const [userProfile, setUserProfile] = useState(null);
     const [error, setError] = useState('');
 
@@ -29,20 +29,16 @@ const Dashboard = () => {
         description: '',
         category: 'Frontend Web Development',
         difficulty: 'BEGINNER',
-        price: 49.99,         // NEW
-        validity_days: 30,    // NEW
+        price: 49.99,
+        validity_days: 30, 
         thumbnail: null
     });
 
     useEffect(() => {
         const fetchUserProfile = async () => {
             try {
-                const token = localStorage.getItem('access_token');
-                if (!token) throw new Error("No token found");
-
-                const res = await axios.get('https://skillstream-backend-cxe5.onrender.com/api/auth/user/', {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                // FIXED: Removed hardcoded URL and manual token headers
+                const res = await api.get('/api/auth/user/');
                 setUserProfile(res.data);
             } catch (err) {
                 console.error("Failed to load user profile");
@@ -53,18 +49,19 @@ const Dashboard = () => {
 
     const fetchCourses = useCallback(async () => {
         try {
-            let url = `https://skillstream-backend-cxe5.onrender.com/api/courses/my_workspace/?search=${search}&page=${currentPage}`;
+            // FIXED: Removed hardcoded localhost domain from the string interpolation
+            let url = `/api/courses/my_workspace/?search=${search}&page=${currentPage}&_t=${new Date().getTime()}`;
+            
             if (category) url += `&category=${category}`;
             if (difficulty) url += `&difficulty=${difficulty}`;
 
-            const token = localStorage.getItem('access_token');
-            const res = await axios.get(url, { headers: { Authorization: `Bearer ${token}` }});
+            const res = await api.get(url);
 
             let loadedCourses = [];
             if (res.data && res.data.results) {
                 loadedCourses = res.data.results;
-                const assumedPageSize = res.data.results.length || 2;
-                setTotalPages(Math.ceil(res.data.count / assumedPageSize));
+                const PAGE_SIZE = 6; 
+                setTotalPages(Math.ceil(res.data.count / PAGE_SIZE));
             } else if (Array.isArray(res.data)) {
                 loadedCourses = res.data;
                 setTotalPages(1);
@@ -72,19 +69,18 @@ const Dashboard = () => {
 
             setCourses(loadedCourses);
 
-            // NEW: Fetch both progress percentage AND days remaining
             const newStatsMap = {};
             await Promise.all(loadedCourses.map(async (c) => {
                 try {
-                    const statRes = await axios.get(`https://skillstream-backend-cxe5.onrender.com/api/courses/stats/${c.id}/`, {
-                        headers: { Authorization: `Bearer ${token}` }
-                    });
+                    // FIXED: Removed hardcoded localhost domain
+                    const statRes = await api.get(`/api/courses/stats/${c.id}/`);
                     newStatsMap[c.id] = {
                         progress: statRes.data.percentage,
-                        days_remaining: statRes.data.days_remaining
+                        days_remaining: statRes.data.days_remaining,
+                        is_expiring_soon: statRes.data.is_expiring_soon 
                     };
                 } catch (e) {
-                    newStatsMap[c.id] = { progress: 0, days_remaining: 0 };
+                    newStatsMap[c.id] = { progress: 0, days_remaining: 0, is_expiring_soon: false };
                 }
             }));
             setStatsMap(newStatsMap); 
@@ -101,29 +97,27 @@ const Dashboard = () => {
     const handleSubmitCourse = async (e) => {
         e.preventDefault();
         try {
-            const token = localStorage.getItem('access_token');
             const formData = new FormData();
             formData.append('title', newCourse.title);
             formData.append('description', newCourse.description);
             formData.append('category', newCourse.category);
             formData.append('difficulty', newCourse.difficulty);
-            formData.append('price', newCourse.price); // NEW
-            formData.append('validity_days', newCourse.validity_days); // NEW
+            formData.append('price', newCourse.price); 
+            formData.append('validity_days', newCourse.validity_days); 
 
             if (newCourse.thumbnail) {
                 formData.append('thumbnail', newCourse.thumbnail);
             }
 
-            const headers = { Authorization: `Bearer ${token}` };
-
             if (editingCourseId) {
-                await axios.patch(`https://skillstream-backend-cxe5.onrender.com/api/courses/${editingCourseId}/`, formData, { headers });
+                // FIXED: Stripped hardcoded URL
+                await api.patch(`/api/courses/${editingCourseId}/`, formData);
                 setNewCourse({ title: '', description: '', category: 'Frontend Web Development', difficulty: 'BEGINNER', price: 49.99, validity_days: 30, thumbnail: null });
                 setEditingCourseId(null);
                 setShowAddForm(false);
                 fetchCourses();
             } else {
-                const res = await axios.post('https://skillstream-backend-cxe5.onrender.com/api/courses/', formData, { headers });
+                const res = await api.post('/api/courses/', formData);
                 navigate(`/manage/course/${res.data.id}`);
             }
         } catch (err) {
@@ -147,18 +141,30 @@ const Dashboard = () => {
     };
 
     const handleDeleteCourse = async (courseId) => {
-        if (!window.confirm("Are you absolutely sure you want to delete this course? This cannot be undone.")) return;
+        if (!window.confirm("Are you absolutely sure you want to delete this course entirely? This cannot be undone.")) return;
         try {
-            const token = localStorage.getItem('access_token');
-            await axios.delete(`https://skillstream-backend-cxe5.onrender.com/api/courses/${courseId}/`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            // FIXED: Stripped hardcoded URL
+            await api.delete(`/api/courses/${courseId}/`);
             setCourses(courses.filter(c => c.id !== courseId));
-            fetchCourses();
         } catch (err) {
             setError("Failed to delete the course. Check your permissions.");
         }
     };
+
+    const handleUnsubscribe = async (courseId) => {
+        if (!window.confirm("Are you sure you want to drop this course? You will lose access and need to re-enroll.")) return;
+        
+        try {
+            // FIXED: Stripped hardcoded URL
+            await api.delete(`/api/courses/${courseId}/unenroll/`);
+            setCourses(courses.filter(c => c.id !== courseId));
+        } catch (err) {
+            console.error(err);
+            setError("Failed to unsubscribe from the course.");
+        }
+    };
+
+    const visibleCourses = courses;
 
     return (
         <div className={`min-vh-100 fade-in-up ${isDarkMode ? 'bg-dark text-light' : 'bg-light text-dark'}`}>
@@ -246,7 +252,6 @@ const Dashboard = () => {
                                         </Form.Group>
                                     </Col>
 
-                                    {/* NEW: Price and Validity Inputs */}
                                     <Col xs={6} md={3}>
                                         <Form.Group>
                                             <Form.Label className="small fw-semibold">Price ($)</Form.Label>
@@ -312,13 +317,31 @@ const Dashboard = () => {
                 <h4 className="mb-4 fw-bold">Your Workspace</h4>
 
                 <Row xs={1} md={2} lg={3} className="g-4 mb-4">
-                    {courses.map((course) => (
+                    {visibleCourses.map((course) => (
                         <Col key={course.id}>
                             <Card className={`h-100 border-0 shadow-sm rounded-4 overflow-hidden position-relative hover-animate ${isDarkMode ? 'bg-secondary bg-opacity-25 text-white' : 'bg-white text-dark'}`}>
+                                
+                                {/* ADMIN / INSTRUCTOR CONTROLS */}
                                 {userProfile && (userProfile.role?.toUpperCase() === 'ADMIN' || userProfile.username === course.instructor_username) && (
                                     <div className="position-absolute top-0 end-0 p-2 d-flex gap-2 z-index-1" style={{ zIndex: 10 }}>
                                         <Button variant="warning" size="sm" className="rounded-circle shadow" style={{ width: '32px', height: '32px', padding: 0 }} onClick={() => handleEditClick(course)}>✏️</Button>
                                         <Button variant="danger" size="sm" className="rounded-circle shadow" style={{ width: '32px', height: '32px', padding: 0 }} onClick={() => handleDeleteCourse(course.id)}>🗑️</Button>
+                                    </div>
+                                )}
+
+                                {/* EMPLOYEE UNSUBSCRIBE CONTROL */}
+                                {userProfile && userProfile.role?.toUpperCase() === 'EMPLOYEE' && (
+                                    <div className="position-absolute top-0 end-0 p-2 z-index-1" style={{ zIndex: 10 }}>
+                                        <Button 
+                                            variant="danger" 
+                                            size="sm" 
+                                            className="rounded-circle shadow d-flex align-items-center justify-content-center fw-bold" 
+                                            style={{ width: '32px', height: '32px', padding: 0 }} 
+                                            title="Drop Course"
+                                            onClick={() => handleUnsubscribe(course.id)}
+                                        >
+                                            ✕
+                                        </Button>
                                     </div>
                                 )}
 
@@ -344,12 +367,13 @@ const Dashboard = () => {
                                         <Badge bg={course.difficulty === 'ADVANCED' ? 'danger' : 'secondary'} className="rounded-pill">{course.difficulty}</Badge>
                                     </div>
 
-                                    {/* NEW: Employee Progress AND Countdown Tracker! */}
                                     {statsMap[course.id] !== undefined && userProfile?.role?.toUpperCase() === 'EMPLOYEE' && (
                                         <div className="mt-3 bg-dark p-3 rounded-3 border border-secondary">
                                             <div className="d-flex justify-content-between align-items-center mb-2">
-                                                <Badge bg="warning" text="dark" className="rounded-pill">
-                                                    ⏳ {statsMap[course.id].days_remaining} Days Left
+                                                <Badge bg={statsMap[course.id].is_expiring_soon ? "danger" : "warning"} text="dark" className="rounded-pill">
+                                                    ⏳ {statsMap[course.id].is_expiring_soon 
+                                                        ? 'Expiring Today' 
+                                                        : `${statsMap[course.id].days_remaining} Days Left`}
                                                 </Badge>
                                                 <small className="fw-bold text-success">{statsMap[course.id].progress}% Done</small>
                                             </div>
@@ -366,19 +390,21 @@ const Dashboard = () => {
                     ))}
                 </Row>
 
-                {courses.length === 0 && <div className="text-center py-5 text-muted">No modules found. Head to the catalog to enroll!</div>}
+                {visibleCourses.length === 0 && <div className="text-center py-5 text-muted">No active modules found. Head to the catalog to enroll!</div>}
 
-                <div className="d-flex justify-content-center mt-5">
-                    <Pagination>
-                        <Pagination.Prev onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} />
-                        {[...Array(totalPages).keys()].map((pageIdx) => (
-                            <Pagination.Item key={pageIdx + 1} active={currentPage === pageIdx + 1} onClick={() => setCurrentPage(pageIdx + 1)}>
-                                {pageIdx + 1}
-                            </Pagination.Item>
-                        ))}
-                        <Pagination.Next onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages || totalPages <= 1} />
-                    </Pagination>
-                </div>
+                {totalPages > 1 && (
+                    <div className="d-flex justify-content-center mt-5">
+                        <Pagination>
+                            <Pagination.Prev onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} />
+                            {[...Array(totalPages).keys()].map((pageIdx) => (
+                                <Pagination.Item key={pageIdx + 1} active={currentPage === pageIdx + 1} onClick={() => setCurrentPage(pageIdx + 1)}>
+                                    {pageIdx + 1}
+                                </Pagination.Item>
+                            ))}
+                            <Pagination.Next onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} />
+                        </Pagination>
+                    </div>
+                )}
             </Container>
         </div>
     );

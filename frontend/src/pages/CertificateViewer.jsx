@@ -1,4 +1,3 @@
-// frontend/src/pages/CertificateViewer.jsx
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Container, Button, Alert, Spinner } from 'react-bootstrap';
@@ -19,7 +18,7 @@ const CertificateViewer = () => {
     useEffect(() => {
         const fetchCertificate = async () => {
             try {
-                const res = await axios.get(`https://skillstream-backend-cxe5.onrender.com/api/courses/certificate/${courseId}/`);
+                const res = await axios.get(`http://localhost:8000/api/courses/certificate/${courseId}/`);
                 setCertData(res.data);
             } catch (err) {
                 if (err.response?.status === 403) {

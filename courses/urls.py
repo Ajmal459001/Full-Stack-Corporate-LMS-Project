@@ -6,7 +6,7 @@ from .views import (
     IssueCertificateView, LessonViewSet, InstructorAnalyticsView, 
     RegisterUserView, CreateStripeCheckoutSessionView, StripeSuccessEnrollmentView,
     ResourceViewSet, SubmitReviewView,
-    QuizViewSet, QuestionViewSet, ChoiceViewSet, SubmitQuizAttemptView # NEW SPRINT 2 IMPORTS
+    QuizViewSet, QuestionViewSet, ChoiceViewSet, SubmitQuizAttemptView, UnenrollCourseView
 )
 
 router = DefaultRouter()
@@ -50,4 +50,5 @@ urlpatterns = [
     # --- STRIPE ROUTES ---
     path('checkout/create-session/<int:course_id>/', CreateStripeCheckoutSessionView.as_view(), name='create-checkout-session'),
     path('checkout/success/', StripeSuccessEnrollmentView.as_view(), name='checkout-success'),
+    path('<int:course_id>/unenroll/', UnenrollCourseView.as_view(), name='unenroll-course'),
 ]

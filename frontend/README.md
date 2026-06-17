@@ -9,3 +9,4 @@ Automated Email Notifications: Set up a system to send welcome emails, payment r
 User Reviews & Ratings: Let students leave 1-to-5 star reviews on courses to build social proof on the public catalog.
 
 Upgrade the UI/UX: Build a "Dark Mode" toggle or improve the dashboard layout with custom CSS/Bootstrap animations.
+

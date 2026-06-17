@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from datetime import timedelta
 from dotenv import load_dotenv
+import dj_database_url
 
 # Load environment variables from .env file
 load_dotenv()
@@ -14,12 +15,8 @@ load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
 # Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
-
 # SECURITY WARNING: keep the secret key used in production secret!
-# Pulled securely from .env
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
@@ -28,9 +25,7 @@ DEBUG = True
 # Allows Render and local servers to host the app
 ALLOWED_HOSTS = ['*']
 
-
 # Application definition
-
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -40,7 +35,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     
     'rest_framework',
-    'corsheaders',  # FIX: Required for the CORS middleware to function properly
+    'corsheaders',  
+    'anymail',  # NEW: Handles HTTP email routing for Render
     
     'authentication',
     'courses',
@@ -60,17 +56,8 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-# Allow React's local server port to communicate with Django
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:5173",
-#     "http://127.0.0.1:5173",
-#     "https://full-stack-corporate-lms-project.vercel.app",
-# ]
-
-# Allow any frontend URL to talk to Django (Perfect for Vercel deployments)
 CORS_ALLOW_ALL_ORIGINS = True
 
-# Configure DRF to use JWT authentication by default
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -79,9 +66,8 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 6,
 }
 
-# Optional: Customize JWT settings (token lifetime)
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(days=1), # Long lifetime for easier development testing
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=1), 
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
     'ROTATE_REFRESH_TOKENS': False,
     'BLACKLIST_AFTER_ROTATION': True,
@@ -107,12 +93,13 @@ TEMPLATES = [
 WSGI_APPLICATION = 'core.wsgi.application'
 
 
-# Database
+# --- ENTERPRISE DATABASE CONFIGURATION ---
+# Dynamically uses Render PostgreSQL if deployed, else falls back to local SQLite
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(
+        default=os.getenv('DATABASE_URL', f'sqlite:///{BASE_DIR / "db.sqlite3"}'),
+        conn_max_age=600
+    )
 }
 
 
@@ -124,35 +111,42 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',},
 ]
 
-
-# Internationalization
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'Asia/Kolkata'
 USE_I18N = True
 USE_TZ = True
 
-
-# Static files (CSS, JavaScript, Images)
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-
 # --- STRIPE PAYMENT CONFIGURATION ---
-# Pulled securely from .env
 STRIPE_TEST_PUBLIC_KEY = os.getenv('STRIPE_PUBLIC_KEY')
 STRIPE_TEST_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
 
 
-# --- SPRINT 3: LIVE GMAIL SMTP CONFIGURATION ---
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
+# --- ENTERPRISE EMAIL CONFIGURATION ---
+# Render's free tier strictly blocks outbound SMTP (Port 587). 
+# We dynamically use standard Gmail SMTP locally, but switch to a free HTTP API in production.
 
-# Pulled securely from .env
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
-DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+if os.getenv('RENDER'): 
+    # Production: Route through Brevo HTTP API
+    EMAIL_BACKEND = "anymail.backends.sendinblue.EmailBackend" 
+    ANYMAIL = {
+        "SENDINBLUE_API_KEY": os.getenv('BREVO_API_KEY'), 
+    }
+    DEFAULT_FROM_EMAIL = os.getenv('EMAIL_HOST_USER')
+else:
+    # Local Development: Standard Gmail SMTP
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = 'smtp.gmail.com'
+    EMAIL_PORT = 587
+    EMAIL_USE_TLS = True
+    EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
+    EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+    DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+
+# --- FRONTEND ROUTING ---
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')

@@ -25,7 +25,7 @@ const Register = () => {
         setError('');
 
         try {
-            await axios.post('https://skillstream-backend-cxe5.onrender.com/api/courses/register/', formData);
+            await api.post('/api/courses/register/', formData);
             navigate('/login', { state: { message: 'Registration successful! Please log in.' } });
         } catch (err) {
             setError(err.response?.data?.error || "Registration failed. Please try again.");

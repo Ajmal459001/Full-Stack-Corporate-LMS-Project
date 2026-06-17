@@ -44,7 +44,7 @@ const CourseManager = () => {
     const fetchCourseData = async () => {
         try {
             const config = getAuthHeaders();
-            const courseRes = await axios.get(`https://skillstream-backend-cxe5.onrender.com/api/courses/${courseId}/`, config);
+            const courseRes = await axios.get(`http://localhost:8000/api/courses/${courseId}/`, config);
             setCourse(courseRes.data);
             
             const rawLessons = courseRes.data.lessons || [];
@@ -70,7 +70,7 @@ const CourseManager = () => {
             const config = getAuthHeaders();
             if (editingLessonId) {
                 // UPDATE EXISTING LESSON
-                await axios.patch(`https://skillstream-backend-cxe5.onrender.com/api/courses/lessons/${editingLessonId}/`, newLesson, config);
+                await axios.patch(`http://localhost:8000/api/courses/lessons/${editingLessonId}/`, newLesson, config);
                 
                 // 1. Show success prompt inline
                 setSuccessMsg("Lesson updated successfully!"); 
@@ -79,7 +79,7 @@ const CourseManager = () => {
                 handleCancelEdit(); 
             } else {
                 // CREATE NEW LESSON
-                await axios.post(`https://skillstream-backend-cxe5.onrender.com/api/courses/lessons/`, { course: courseId, ...newLesson }, config);
+                await axios.post(`http://localhost:8000/api/courses/lessons/`, { course: courseId, ...newLesson }, config);
                 
                 // 1. Show success prompt inline
                 setSuccessMsg("New lesson added successfully!");
@@ -113,7 +113,7 @@ const CourseManager = () => {
     const handleDeleteLesson = async (lessonId) => {
         if (!window.confirm("Delete this video module?")) return;
         try {
-            await axios.delete(`https://skillstream-backend-cxe5.onrender.com/api/courses/lessons/${lessonId}/`, getAuthHeaders());
+            await axios.delete(`http://localhost:8000/api/courses/lessons/${lessonId}/`, getAuthHeaders());
             if (editingLessonId === lessonId) handleCancelEdit();
             fetchCourseData(); 
         } catch (err) { setError("Failed to delete lesson."); }
@@ -122,7 +122,7 @@ const CourseManager = () => {
     const handleAddResource = async () => {
         if (!newResource.title || !newResource.file_url) return setError("Resource title and URL required.");
         try {
-            await axios.post(`https://skillstream-backend-cxe5.onrender.com/api/courses/resources/`, { lesson: editingLessonId, ...newResource }, getAuthHeaders());
+            await axios.post(`http://localhost:8000/api/courses/resources/`, { lesson: editingLessonId, ...newResource }, getAuthHeaders());
             setNewResource({ title: '', file_url: '' });
             fetchCourseData(); 
         } catch (err) { setError("Failed to attach resource."); }
@@ -130,7 +130,7 @@ const CourseManager = () => {
 
     const handleDeleteResource = async (resourceId) => {
         try {
-            await axios.delete(`https://skillstream-backend-cxe5.onrender.com/api/courses/resources/${resourceId}/`, getAuthHeaders());
+            await axios.delete(`http://localhost:8000/api/courses/resources/${resourceId}/`, getAuthHeaders());
             fetchCourseData(); 
         } catch (err) { setError("Failed to delete resource."); }
     };
@@ -138,7 +138,7 @@ const CourseManager = () => {
     // --- SPRINT 2: Assessment Builder Logic ---
     const handleCreateQuiz = async () => {
         try {
-            await axios.post('https://skillstream-backend-cxe5.onrender.com/api/courses/quizzes/', {
+            await api.post('/api/courses/quizzes/', {
                 course: courseId, title: 'Final Course Assessment', passing_score: 80
             }, getAuthHeaders());
             fetchCourseData();
@@ -151,12 +151,12 @@ const CourseManager = () => {
         
         setIsSubmitting(true);
         try {
-            const qRes = await axios.post('https://skillstream-backend-cxe5.onrender.com/api/courses/questions/', {
+            const qRes = await api.post('/api/courses/questions/', {
                 quiz: course.quiz.id, text: questionText, order: course.quiz.questions ? course.quiz.questions.length + 1 : 1
             }, getAuthHeaders());
 
             await Promise.all(choices.map(c => 
-                axios.post('https://skillstream-backend-cxe5.onrender.com/api/courses/choices/', { question: qRes.data.id, ...c }, getAuthHeaders())
+                api.post('/api/courses/choices/', { question: qRes.data.id, ...c }, getAuthHeaders())
             ));
 
             setQuestionText('');
@@ -168,7 +168,7 @@ const CourseManager = () => {
     const handleDeleteQuestion = async (qId) => {
         if(!window.confirm("Delete this question?")) return;
         try {
-            await axios.delete(`https://skillstream-backend-cxe5.onrender.com/api/courses/questions/${qId}/`, getAuthHeaders());
+            await axios.delete(`http://localhost:8000/api/courses/questions/${qId}/`, getAuthHeaders());
             fetchCourseData();
         } catch(err) { setError("Failed to delete question."); }
     };

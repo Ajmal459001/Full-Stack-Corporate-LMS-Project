@@ -1,4 +1,3 @@
-// frontend/src/pages/AnalyticsDashboard.jsx
 import { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, ProgressBar, Alert, Spinner, Button, Accordion, Badge } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
@@ -15,7 +14,7 @@ const AnalyticsDashboard = () => {
         const fetchAnalytics = async () => {
             try {
                 const token = localStorage.getItem('access_token');
-                const res = await axios.get('https://skillstream-backend-cxe5.onrender.com/api/courses/analytics/', {
+                const res = await api.get('/api/courses/analytics/', {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 setAnalytics(res.data);

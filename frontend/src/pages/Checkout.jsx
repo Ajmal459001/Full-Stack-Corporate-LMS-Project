@@ -1,7 +1,8 @@
+// frontend/src/pages/Checkout.jsx
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Container, Card, Button, Spinner, Badge } from 'react-bootstrap';
-import axios from 'axios';
+import api from '../api'; // FIXED: Imported central API instance
 import { useTheme } from '../context/ThemeContext';
 
 const Checkout = () => {
@@ -16,10 +17,8 @@ const Checkout = () => {
     useEffect(() => {
         const fetchCourse = async () => {
             try {
-                const token = localStorage.getItem('access_token');
-                const res = await axios.get(`http://localhost:8000/api/courses/${id}/`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                // FIXED: Stripped localhost and manual headers
+                const res = await api.get(`/api/courses/${id}/`);
                 setCourse(res.data);
             } catch (err) {
                 console.error("Failed to fetch course details", err);
@@ -33,10 +32,8 @@ const Checkout = () => {
     const handleStripeCheckout = async () => {
         setIsProcessing(true);
         try {
-            const token = localStorage.getItem('access_token');
-            const res = await axios.post(`http://localhost:8000/api/courses/checkout/create-session/${id}/`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            // FIXED: Stripped localhost and manual headers
+            const res = await api.post(`/api/courses/checkout/create-session/${id}/`);
             
             // This is the magic! We teleport the user to Stripe's secure servers.
             window.location.href = res.data.checkout_url;
@@ -66,7 +63,6 @@ const Checkout = () => {
                         
                         <div className="d-flex justify-content-between align-items-center border-top border-secondary pt-3 mt-3">
                             <span className="fw-medium">Total Cost:</span>
-                            {/* NEW: Dynamic Price Display */}
                             <span className="fs-4 fw-bold text-success">${course.price}</span>
                         </div>
                         <div className="text-end text-muted small mt-1">

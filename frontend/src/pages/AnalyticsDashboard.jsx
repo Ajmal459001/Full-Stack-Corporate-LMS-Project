@@ -1,7 +1,8 @@
+// frontend/src/pages/AnalyticsDashboard.jsx
 import { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, ProgressBar, Alert, Spinner, Button, Accordion, Badge } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api'; // FIXED: Imported central API instance
 import { useTheme } from '../context/ThemeContext';
 
 const AnalyticsDashboard = () => {
@@ -13,10 +14,8 @@ const AnalyticsDashboard = () => {
     useEffect(() => {
         const fetchAnalytics = async () => {
             try {
-                const token = localStorage.getItem('access_token');
-                const res = await api.get('/api/courses/analytics/', {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                // FIXED: Removed manual token config
+                const res = await api.get('/api/courses/analytics/');
                 setAnalytics(res.data);
             } catch (err) {
                 console.error(err);
@@ -42,7 +41,6 @@ const AnalyticsDashboard = () => {
                 </Button>
             </div>
 
-            {/* SPRINT 3: Upgraded KPI Metric Cards (Now 4 Columns) */}
             <Row className="g-4 mb-5">
                 <Col md={3}>
                     <Card className={`border shadow-sm h-100 rounded-4 ${isDarkMode ? 'bg-dark text-light border-secondary' : 'bg-white text-dark border-light'}`}>
@@ -93,7 +91,6 @@ const AnalyticsDashboard = () => {
                                     <div className="d-flex justify-content-between align-items-start mb-3">
                                         <div>
                                             <span className="badge bg-primary mb-2 me-2">{course.category}</span>
-                                            {/* SPRINT 3: Individual Course Revenue Badge */}
                                             <span className="badge bg-warning text-dark mb-2">💰 ${course.revenue?.toFixed(2)} Earned</span>
                                             <h5 className="fw-bold mb-0">{course.title}</h5>
                                         </div>
@@ -121,7 +118,6 @@ const AnalyticsDashboard = () => {
                                         </Button>
                                     </div>
 
-                                    {/* Instructor Feedback Section */}
                                     <Accordion>
                                         <Accordion.Item eventKey={course.id.toString()} className={isDarkMode ? 'bg-dark text-light border-secondary' : ''}>
                                             <Accordion.Header className={isDarkMode ? 'bg-dark text-light' : ''}>

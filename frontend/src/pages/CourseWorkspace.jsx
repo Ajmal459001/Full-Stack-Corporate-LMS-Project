@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Container, Row, Col, ListGroup, Card, Button, Alert, ProgressBar, Badge, Modal, Form } from 'react-bootstrap';
-import axios from 'axios';
+import api from '../api'; // FIXED: Imported central API instance
 import { useTheme } from '../context/ThemeContext';
 
 const CourseWorkspace = () => {
@@ -38,15 +38,14 @@ const CourseWorkspace = () => {
 
     const fetchWorkspaceData = async (targetLessonId = null) => {
         try {
-            const token = localStorage.getItem('access_token');
-            const config = { headers: { Authorization: `Bearer ${token}` } };
-            
-            const userRes = await api.get('/api/auth/user/', config);
+            // FIXED: Removed manual token config
+            const userRes = await api.get('/api/auth/user/');
             const role = userRes.data.role?.toUpperCase() || 'EMPLOYEE';
             const hasVIPAccess = role === 'ADMIN' || role === 'INSTRUCTOR';
             setIsVIP(hasVIPAccess);
 
-            const courseRes = await axios.get(`http://localhost:8000/api/courses/${courseId}/`, config);
+            // FIXED: Stripped localhost
+            const courseRes = await api.get(`/api/courses/${courseId}/`);
             const fetchedCourse = courseRes.data;
             
             const sortedLessons = (fetchedCourse.lessons || []).sort((a, b) => a.order - b.order);
@@ -67,12 +66,13 @@ const CourseWorkspace = () => {
 
                 if (!hasVIPAccess) {
                     try {
+                        // FIXED: Stripped localhost
                         const url = targetLessonId 
-                            ? `http://localhost:8000/api/courses/progress/${courseId}/?lesson_id=${targetLessonId}`
-                            : `http://localhost:8000/api/courses/progress/${courseId}/`;
+                            ? `/api/courses/progress/${courseId}/?lesson_id=${targetLessonId}`
+                            : `/api/courses/progress/${courseId}/`;
                             
-                        const progressRes = await axios.get(url, config);
-                        const statsRes = await axios.get(`http://localhost:8000/api/courses/stats/${courseId}/`, config);
+                        const progressRes = await api.get(url);
+                        const statsRes = await api.get(`/api/courses/stats/${courseId}/`);
                         setStats(statsRes.data);
                         
                         // SPRINT 2 FIX: Automatically populate quizResult if they passed previously!
@@ -121,19 +121,17 @@ const CourseWorkspace = () => {
         if (timestamp === lastSavedTimeRef.current && !isCompleted) return;
         
         lastSavedTimeRef.current = timestamp; 
-        const token = localStorage.getItem('access_token');
 
         try {
-            await axios.post(`http://localhost:8000/api/courses/progress/${courseId}/`, {
+            // FIXED: Stripped localhost and manual headers
+            await api.post(`/api/courses/progress/${courseId}/`, {
                 lesson_id: lessonId,
                 timestamp: timestamp,
                 is_completed: isCompleted 
-            }, { headers: { Authorization: `Bearer ${token}` } });
+            });
             
             if (!isNavigatingRef.current) {
-                const statsRes = await axios.get(`http://localhost:8000/api/courses/stats/${courseId}/`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const statsRes = await api.get(`/api/courses/stats/${courseId}/`);
                 setStats(statsRes.data);
             }
         } catch (err) {
@@ -191,10 +189,8 @@ const CourseWorkspace = () => {
         setError('');
         setReviewSuccess('');
         try {
-            const token = localStorage.getItem('access_token');
-            await axios.post(`http://localhost:8000/api/courses/course/${courseId}/review/`, reviewData, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            // FIXED: Stripped localhost and manual headers
+            await api.post(`/api/courses/course/${courseId}/review/`, reviewData);
             setReviewSuccess('Review submitted successfully!');
             setTimeout(() => {
                 setShowReviewModal(false);
@@ -216,10 +212,10 @@ const CourseWorkspace = () => {
         setQuizSubmitting(true);
         setError('');
         try {
-            const token = localStorage.getItem('access_token');
-            const res = await axios.post(`http://localhost:8000/api/courses/quiz/${course.quiz.id}/submit/`, {
+            // FIXED: Stripped localhost and manual headers
+            const res = await api.post(`/api/courses/quiz/${course.quiz.id}/submit/`, {
                 answers: selectedAnswers
-            }, { headers: { Authorization: `Bearer ${token}` } });
+            });
             
             setQuizResult(res.data);
         } catch(err) {

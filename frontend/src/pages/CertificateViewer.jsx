@@ -1,7 +1,8 @@
+// frontend/src/pages/CertificateViewer.jsx
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Container, Button, Alert, Spinner } from 'react-bootstrap';
-import axios from 'axios';
+import api from '../api'; // FIXED: Imported central API instance
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
@@ -18,11 +19,11 @@ const CertificateViewer = () => {
     useEffect(() => {
         const fetchCertificate = async () => {
             try {
-                const res = await axios.get(`http://localhost:8000/api/courses/certificate/${courseId}/`);
+                // FIXED: Stripped localhost
+                const res = await api.get(`/api/courses/certificate/${courseId}/`);
                 setCertData(res.data);
             } catch (err) {
                 if (err.response?.status === 403) {
-                    // FIX: Dynamically read the exact error message sent by Django!
                     setError(err.response.data?.error || "You have not reached 100% completion for this course yet.");
                 } else {
                     setError("Failed to locate certificate record. Please try again.");
@@ -62,7 +63,6 @@ const CertificateViewer = () => {
         }
     };
 
-    // Helper function to force proper Title Case (admin -> Admin, JOHN -> John)
     const formatName = (name) => {
         if (!name) return "";
         return name.toLowerCase().split(' ').map(word => 
@@ -124,7 +124,6 @@ const CertificateViewer = () => {
                             padding: '60px'
                         }}
                     >
-                        {/* Background subtle elements */}
                         <div style={{
                             position: 'absolute',
                             top: '-20%', left: '-10%',
@@ -136,13 +135,7 @@ const CertificateViewer = () => {
 
                         <div className="position-relative w-100 h-100 d-flex flex-column align-items-center text-center" style={{ zIndex: 1 }}>
                             
-                            {/* CORPORATE LOGO INJECTION */}
                             <div className="mb-2" style={{ height: '70px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                {/* IMPORTANT: Place your logo file (e.g., logo.png or logo.svg) in the frontend/public/ folder! 
-                                  Then update the src below to "/logo.png". 
-                                  For now, this is a beautifully styled colored CSS placeholder so you can see the layout.
-                                  <img src="/logo.png" alt="SkillStream" style={{ height: '50px' }} />
-                                */}
                                 <div style={{ 
                                     display: 'flex', 
                                     alignItems: 'center', 
@@ -150,7 +143,7 @@ const CertificateViewer = () => {
                                 }}>
                                     <div style={{
                                         width: '40px', height: '40px', 
-                                        background: 'linear-gradient(135deg, #0d6efd 0%, #0dcaf0 100%)', // Vibrant corporate blue
+                                        background: 'linear-gradient(135deg, #0d6efd 0%, #0dcaf0 100%)',
                                         borderRadius: '8px',
                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                                         color: 'white', fontWeight: 'bold', fontSize: '24px', fontFamily: 'sans-serif'
@@ -220,7 +213,6 @@ const CertificateViewer = () => {
                                     padding: '0 40px',
                                     lineHeight: '1'
                                 }}>
-                                    {/* USING THE NEW JS FORMATTER HERE */}
                                     {formatName(certData.student_name)}
                                 </h2>
                             </div>

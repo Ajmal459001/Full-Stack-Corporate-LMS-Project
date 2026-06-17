@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Container, Row, Col, Card, Button, Form, Alert, ListGroup, Badge, ButtonGroup, InputGroup } from 'react-bootstrap';
-import axios from 'axios';
+import api from '../api'; // FIXED: Imported central API instance
 import { useTheme } from '../context/ThemeContext';
 
 const CourseManager = () => {
@@ -14,8 +14,8 @@ const CourseManager = () => {
     const [course, setCourse] = useState(null);
     const [lessons, setLessons] = useState([]);
     const [error, setError] = useState('');
-    const [successMsg, setSuccessMsg] = useState(''); // NEW: Success message state
-    const [activeTab, setActiveTab] = useState('curriculum'); // Tab toggle state
+    const [successMsg, setSuccessMsg] = useState(''); 
+    const [activeTab, setActiveTab] = useState('curriculum'); 
     
     // Curriculum States
     const [newLesson, setNewLesson] = useState({ title: '', video_url: '', order: 1 });
@@ -36,15 +36,10 @@ const CourseManager = () => {
         fetchCourseData();
     }, [courseId]);
 
-    const getAuthHeaders = () => {
-        const token = localStorage.getItem('access_token');
-        return { headers: { Authorization: `Bearer ${token}` } };
-    };
-
     const fetchCourseData = async () => {
         try {
-            const config = getAuthHeaders();
-            const courseRes = await axios.get(`http://localhost:8000/api/courses/${courseId}/`, config);
+            // FIXED: Stripped localhost and manual headers
+            const courseRes = await api.get(`/api/courses/${courseId}/`);
             setCourse(courseRes.data);
             
             const rawLessons = courseRes.data.lessons || [];
@@ -64,31 +59,23 @@ const CourseManager = () => {
         e.preventDefault();
         setIsSubmitting(true);
         setError('');
-        setSuccessMsg(''); // Clear previous success messages
+        setSuccessMsg(''); 
         
         try {
-            const config = getAuthHeaders();
             if (editingLessonId) {
-                // UPDATE EXISTING LESSON
-                await axios.patch(`http://localhost:8000/api/courses/lessons/${editingLessonId}/`, newLesson, config);
+                // UPDATE EXISTING LESSON - FIXED: Stripped localhost
+                await api.patch(`/api/courses/lessons/${editingLessonId}/`, newLesson);
                 
-                // 1. Show success prompt inline
                 setSuccessMsg("Lesson updated successfully!"); 
-                
-                // 2. Close the editor and reset states
                 handleCancelEdit(); 
             } else {
-                // CREATE NEW LESSON
-                await axios.post(`http://localhost:8000/api/courses/lessons/`, { course: courseId, ...newLesson }, config);
+                // CREATE NEW LESSON - FIXED: Stripped localhost
+                await api.post(`/api/courses/lessons/`, { course: courseId, ...newLesson });
                 
-                // 1. Show success prompt inline
                 setSuccessMsg("New lesson added successfully!");
-                
-                // 2. Reset the form for the next lesson
                 setNewLesson({ title: '', video_url: '', order: lessons.length + 2 });
             }
             
-            // 3. Refresh the UI to show the latest database changes
             await fetchCourseData(); 
             
         } catch (err) { 
@@ -113,7 +100,8 @@ const CourseManager = () => {
     const handleDeleteLesson = async (lessonId) => {
         if (!window.confirm("Delete this video module?")) return;
         try {
-            await axios.delete(`http://localhost:8000/api/courses/lessons/${lessonId}/`, getAuthHeaders());
+            // FIXED: Stripped localhost
+            await api.delete(`/api/courses/lessons/${lessonId}/`);
             if (editingLessonId === lessonId) handleCancelEdit();
             fetchCourseData(); 
         } catch (err) { setError("Failed to delete lesson."); }
@@ -122,7 +110,8 @@ const CourseManager = () => {
     const handleAddResource = async () => {
         if (!newResource.title || !newResource.file_url) return setError("Resource title and URL required.");
         try {
-            await axios.post(`http://localhost:8000/api/courses/resources/`, { lesson: editingLessonId, ...newResource }, getAuthHeaders());
+            // FIXED: Stripped localhost
+            await api.post(`/api/courses/resources/`, { lesson: editingLessonId, ...newResource });
             setNewResource({ title: '', file_url: '' });
             fetchCourseData(); 
         } catch (err) { setError("Failed to attach resource."); }
@@ -130,7 +119,8 @@ const CourseManager = () => {
 
     const handleDeleteResource = async (resourceId) => {
         try {
-            await axios.delete(`http://localhost:8000/api/courses/resources/${resourceId}/`, getAuthHeaders());
+            // FIXED: Stripped localhost
+            await api.delete(`/api/courses/resources/${resourceId}/`);
             fetchCourseData(); 
         } catch (err) { setError("Failed to delete resource."); }
     };
@@ -138,9 +128,10 @@ const CourseManager = () => {
     // --- SPRINT 2: Assessment Builder Logic ---
     const handleCreateQuiz = async () => {
         try {
+            // FIXED: Removed manual headers
             await api.post('/api/courses/quizzes/', {
                 course: courseId, title: 'Final Course Assessment', passing_score: 80
-            }, getAuthHeaders());
+            });
             fetchCourseData();
         } catch(err) { setError("Failed to initialize assessment."); }
     };
@@ -151,12 +142,13 @@ const CourseManager = () => {
         
         setIsSubmitting(true);
         try {
+            // FIXED: Removed manual headers
             const qRes = await api.post('/api/courses/questions/', {
                 quiz: course.quiz.id, text: questionText, order: course.quiz.questions ? course.quiz.questions.length + 1 : 1
-            }, getAuthHeaders());
+            });
 
             await Promise.all(choices.map(c => 
-                api.post('/api/courses/choices/', { question: qRes.data.id, ...c }, getAuthHeaders())
+                api.post('/api/courses/choices/', { question: qRes.data.id, ...c })
             ));
 
             setQuestionText('');
@@ -168,7 +160,8 @@ const CourseManager = () => {
     const handleDeleteQuestion = async (qId) => {
         if(!window.confirm("Delete this question?")) return;
         try {
-            await axios.delete(`http://localhost:8000/api/courses/questions/${qId}/`, getAuthHeaders());
+            // FIXED: Stripped localhost
+            await api.delete(`/api/courses/questions/${qId}/`);
             fetchCourseData();
         } catch(err) { setError("Failed to delete question."); }
     };

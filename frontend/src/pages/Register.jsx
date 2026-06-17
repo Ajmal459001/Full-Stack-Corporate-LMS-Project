@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { Container, Row, Col, Card, Form, Button, Alert, ButtonGroup } from 'react-bootstrap';
 import { useNavigate, Link } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api'; // FIXED: Imported central API instance, removed axios
 import { useTheme } from '../context/ThemeContext'; 
 
 const Register = () => {
@@ -58,7 +58,6 @@ const Register = () => {
                 <Row className="justify-content-center">
                     <Col md={6} lg={5}>
                         <div className="text-center mb-4">
-                            {/* NEW: Wrapped logo in a Link to redirect to Landing Page */}
                             <Link to="/">
                                 <img 
                                     src="/skillstream-logo-full.png" 

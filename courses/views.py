@@ -319,40 +319,49 @@ class InstructorAnalyticsView(APIView):
         courses = Course.objects.filter(instructor=request.user)
         enrollments = Enrollment.objects.filter(course__in=courses)
         
-        total_enrollments = enrollments.count()
-        completed_enrollments = enrollments.filter(is_completed=True).count()
-        overall_completion_rate = int((completed_enrollments / total_enrollments) * 100) if total_enrollments > 0 else 0
+        # FIX 1: Count distinct users, not raw progress fragment rows!
+        total_unique_students = enrollments.values('user').distinct().count()
+        
+        # FIX 2: Global completion is determined by actual earned certificates
+        total_certificates = Certificate.objects.filter(course__in=courses).count()
+        
+        overall_completion_rate = int((total_certificates / total_unique_students) * 100) if total_unique_students > 0 else 0
 
         course_breakdown = []
-        total_revenue = 0.0 # SPRINT 3: Revenue Tracking
+        total_revenue = 0.0
 
         for course in courses:
             course_enrollments = enrollments.filter(course=course)
-            course_total = course_enrollments.count()
-            rate = int((course_enrollments.filter(is_completed=True).count() / course_total) * 100) if course_total > 0 else 0
             
-            # Calculate Revenue specific to this track
-            revenue = float(course_total * course.price)
+            # 1 User = 1 Student, regardless of how many lessons they watched
+            course_total_students = course_enrollments.values('user').distinct().count()
+            
+            # Completion is determined by whether they earned the final certificate
+            course_certs = Certificate.objects.filter(course=course).count()
+            rate = int((course_certs / course_total_students) * 100) if course_total_students > 0 else 0
+            
+            # Revenue is Price * Distinct Users
+            revenue = float(course_total_students * course.price)
             total_revenue += revenue
             
             course_breakdown.append({
                 "id": course.id,
                 "title": course.title,
-                "total_students": course_total,
+                "total_students": course_total_students,
                 "completion_rate": rate,
-                "revenue": revenue, # Added to payload
+                "revenue": revenue,
                 "category": course.category,
                 "reviews": list(course.reviews.values('user__username', 'rating', 'comment', 'created_at'))
             })
 
         return Response({
             "total_courses": courses.count(),
-            "total_students": enrollments.values('user').distinct().count(),
+            "total_students": total_unique_students,
             "overall_completion_rate": overall_completion_rate,
-            "total_revenue": total_revenue, # Added to payload
+            "total_revenue": total_revenue,
             "course_breakdown": course_breakdown
         }, status=status.HTTP_200_OK)
-
+        
 class RegisterUserView(APIView):
     authentication_classes = [] 
     permission_classes = [AllowAny] 

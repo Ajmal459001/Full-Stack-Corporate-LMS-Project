@@ -6,17 +6,14 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 
-# AUTH & EMAIL IMPORTS (Sprint 3)
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password
 from django.core.mail import send_mail
 
-# MODELS & SERIALIZERS 
 from .models import Course, Enrollment, Certificate, Lesson, UserProfile, Resource, Review, Quiz, Question, Choice, QuizAttempt
 from .serializers import CourseSerializer, EnrollmentSerializer, LessonSerializer, ResourceSerializer, ReviewSerializer, QuizSerializer, QuestionSerializer, ChoiceSerializer, QuizAttemptSerializer
 from .permissions import IsInstructorOrReadOnly
 
-# ENTERPRISE LOGIC IMPORTS (Stripe & Time)
 import stripe
 from django.conf import settings
 from django.utils import timezone
@@ -29,7 +26,6 @@ stripe.api_key = settings.STRIPE_TEST_SECRET_KEY
 class CourseViewSet(viewsets.ModelViewSet):
     serializer_class = CourseSerializer
     permission_classes = [IsAuthenticated, IsInstructorOrReadOnly]
-    
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['title', 'description']
     ordering_fields = ['id', 'title']
@@ -42,7 +38,6 @@ class CourseViewSet(viewsets.ModelViewSet):
 
         if category_param: queryset = queryset.filter(category__icontains=category_param)
         if difficulty_param: queryset = queryset.filter(difficulty=difficulty_param)
-            
         return queryset
 
     def perform_create(self, serializer):
@@ -62,7 +57,6 @@ class CourseViewSet(viewsets.ModelViewSet):
             enrolled_course_ids = Enrollment.objects.filter(
                 user=request.user, expires_at__gt=timezone.now() 
             ).values_list('course_id', flat=True)
-            
             queryset = Course.objects.filter(id__in=enrolled_course_ids).order_by('-id')
 
         search_param = request.query_params.get('search')
@@ -76,15 +70,12 @@ class CourseViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
-
 class LessonViewSet(viewsets.ModelViewSet):
     serializer_class = LessonSerializer
     permission_classes = [IsAuthenticated, IsInstructorOrReadOnly]
-    
     def get_queryset(self):
         queryset = Lesson.objects.all()
         course_id = self.request.query_params.get('course_id')
-        
         if course_id:
             if self.request.user.is_superuser or self.request.user.is_staff:
                 role = 'ADMIN'
@@ -93,15 +84,10 @@ class LessonViewSet(viewsets.ModelViewSet):
                 role = profile.role.upper() if profile else 'EMPLOYEE'
 
             if role == 'EMPLOYEE':
-                has_active_sub = Enrollment.objects.filter(
-                    user=self.request.user, course_id=course_id, expires_at__gt=timezone.now()
-                ).exists()
+                has_active_sub = Enrollment.objects.filter(user=self.request.user, course_id=course_id, expires_at__gt=timezone.now()).exists()
                 if not has_active_sub: return Lesson.objects.none() 
-
             queryset = queryset.filter(course_id=course_id)
-            
         return queryset
-
 
 class QuizViewSet(viewsets.ModelViewSet):
     serializer_class = QuizSerializer
@@ -109,8 +95,7 @@ class QuizViewSet(viewsets.ModelViewSet):
     def get_queryset(self): return Quiz.objects.all()
     def perform_create(self, serializer):
         course = serializer.validated_data['course']
-        if course.instructor != self.request.user and not self.request.user.is_superuser:
-            raise PermissionDenied("Only the instructor can enable assessments.")
+        if course.instructor != self.request.user and not self.request.user.is_superuser: raise PermissionDenied("Only the instructor can enable assessments.")
         serializer.save()
 
 class QuestionViewSet(viewsets.ModelViewSet):
@@ -119,8 +104,7 @@ class QuestionViewSet(viewsets.ModelViewSet):
     def get_queryset(self): return Question.objects.all()
     def perform_create(self, serializer):
         quiz = serializer.validated_data['quiz']
-        if quiz.course.instructor != self.request.user and not self.request.user.is_superuser:
-            raise PermissionDenied("Only the instructor can add questions.")
+        if quiz.course.instructor != self.request.user and not self.request.user.is_superuser: raise PermissionDenied("Only the instructor can add questions.")
         serializer.save()
 
 class ChoiceViewSet(viewsets.ModelViewSet):
@@ -129,8 +113,7 @@ class ChoiceViewSet(viewsets.ModelViewSet):
     def get_queryset(self): return Choice.objects.all()
     def perform_create(self, serializer):
         question = serializer.validated_data['question']
-        if question.quiz.course.instructor != self.request.user and not self.request.user.is_superuser:
-            raise PermissionDenied("Only the instructor can add choices.")
+        if question.quiz.course.instructor != self.request.user and not self.request.user.is_superuser: raise PermissionDenied("Only the instructor can add choices.")
         serializer.save()
 
 class SubmitQuizAttemptView(APIView):
@@ -157,7 +140,6 @@ class SubmitQuizAttemptView(APIView):
         except Quiz.DoesNotExist:
             return Response({"error": "Quiz not found"}, status=status.HTTP_404_NOT_FOUND)
 
-
 class ResourceViewSet(viewsets.ModelViewSet):
     serializer_class = ResourceSerializer
     permission_classes = [IsAuthenticated, IsInstructorOrReadOnly]
@@ -181,27 +163,25 @@ class SubmitReviewView(APIView):
             
             rating = request.data.get('rating')
             comment = request.data.get('comment', '')
-
             if not rating or not str(rating).isdigit() or not (1 <= int(rating) <= 5): return Response({"error": "Please provide a valid rating between 1 and 5."}, status=status.HTTP_400_BAD_REQUEST)
 
             review, created = Review.objects.update_or_create(course=course, user=request.user, defaults={'rating': int(rating), 'comment': comment})
             return Response({"message": "Review submitted successfully!", "review_id": review.id}, status=status.HTTP_200_OK)
-
         except Course.DoesNotExist:
             return Response({"error": "Course not found"}, status=status.HTTP_404_NOT_FOUND)
-
 
 class TrackProgressView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, course_id):
-        lesson_id = request.query_params.get('lesson_id')
-        if not lesson_id:
-            enrollment = Enrollment.objects.filter(user=request.user, course_id=course_id).order_by('-updated_at').first()
-        else:
-            enrollment, created = Enrollment.objects.get_or_create(user=request.user, course_id=course_id, last_watched_lesson_id=lesson_id)
-        serializer = EnrollmentSerializer(enrollment) if enrollment else None
-        return Response(serializer.data if serializer else {"last_timestamp": 0.0}, status=status.HTTP_200_OK)
+        enrollment = Enrollment.objects.filter(user=request.user, course_id=course_id).first()
+        if not enrollment:
+            return Response({"last_timestamp": 0.0}, status=status.HTTP_200_OK)
+        
+        return Response({
+            "last_watched_lesson": enrollment.last_watched_lesson_id,
+            "last_timestamp": enrollment.last_timestamp
+        }, status=status.HTTP_200_OK)
 
     def post(self, request, course_id):
         lesson_id = request.data.get('lesson_id')
@@ -210,17 +190,17 @@ class TrackProgressView(APIView):
 
         if not lesson_id: return Response({"error": "Missing lesson_id"}, status=status.HTTP_400_BAD_REQUEST)
 
-        enrollment, created = Enrollment.objects.get_or_create(
-            user=request.user, course_id=course_id, last_watched_lesson_id=lesson_id,
-            defaults={'last_timestamp': float(timestamp), 'is_completed': is_completed}
-        )
-        if not created:
-            enrollment.last_timestamp = float(timestamp)
-            if is_completed: enrollment.is_completed = True
-            enrollment.save()
-            
-        return Response({"message": "Progress saved natively"}, status=status.HTTP_200_OK)
+        enrollment = Enrollment.objects.filter(user=request.user, course_id=course_id).first()
+        if not enrollment:
+            return Response({"error": "Not enrolled"}, status=status.HTTP_403_FORBIDDEN)
 
+        enrollment.last_watched_lesson_id = lesson_id
+        enrollment.last_timestamp = float(timestamp)
+        if is_completed:
+            enrollment.completed_lessons.add(lesson_id)
+        enrollment.save()
+            
+        return Response({"message": "Progress synced securely"}, status=status.HTTP_200_OK)
 
 class CourseCompletionStatsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -230,26 +210,22 @@ class CourseCompletionStatsView(APIView):
             course = Course.objects.get(id=course_id)
             total_lessons = course.lessons.count()
             
-            # Fetch the user's enrollment early
-            enrollments = Enrollment.objects.filter(user=request.user, course_id=course_id)
+            enrollment = Enrollment.objects.filter(user=request.user, course_id=course_id).first()
             
-            # 1. Calculate Progress (Handle the 0 lessons case here, without exiting early)
-            if total_lessons == 0:
+            # 1. Calculate Progress properly utilizing the M2M field
+            if total_lessons == 0 or not enrollment:
                 percentage = 0
                 completed_lesson_ids = []
             else:
-                completed_lesson_ids = list(set([e.last_watched_lesson.id for e in enrollments if e.is_completed and e.last_watched_lesson]))
+                completed_lesson_ids = list(enrollment.completed_lessons.values_list('id', flat=True))
                 percentage = int((len(completed_lesson_ids) / total_lessons) * 100)
 
             # 2. Calculate Accurate Time Remaining
-            enrollment = enrollments.order_by('-expires_at').first()
-            
             if enrollment and enrollment.expires_at:
                 time_remaining = enrollment.expires_at - timezone.now()
                 days_remaining = max(0, time_remaining.days)
                 is_expiring_soon = 0 <= time_remaining.total_seconds() < 86400
             else:
-                # Fallback for Admins/Instructors viewing a course without a formal student enrollment
                 days_remaining = course.validity_days
                 is_expiring_soon = False
 
@@ -274,7 +250,6 @@ class CourseCompletionStatsView(APIView):
         except Course.DoesNotExist:
              return Response({"error": "Course not found"}, status=status.HTTP_404_NOT_FOUND)
 
-
 class IssueCertificateView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -286,12 +261,12 @@ class IssueCertificateView(APIView):
             total_lessons = course.lessons.count()
             if total_lessons == 0: return Response({"error": "Course has no content."}, status=status.HTTP_400_BAD_REQUEST)
 
-            completed_enrollments = Enrollment.objects.filter(user=request.user, course_id=course_id, is_completed=True).values_list('last_watched_lesson_id', flat=True).distinct()
-            if len(completed_enrollments) < total_lessons: return Response({"error": "Course not 100% completed yet."}, status=status.HTTP_403_FORBIDDEN)
+            enrollment = Enrollment.objects.filter(user=request.user, course_id=course_id).first()
+            if not enrollment or enrollment.completed_lessons.count() < total_lessons: 
+                return Response({"error": "Course not 100% completed yet."}, status=status.HTTP_403_FORBIDDEN)
 
             certificate, created = Certificate.objects.get_or_create(user=request.user, course=course)
             
-            # SPRINT 3: Send Automated Achievement Email
             if created:
                 send_mail(
                     subject=f"Achievement Unlocked: {course.title}",
@@ -317,12 +292,9 @@ class InstructorAnalyticsView(APIView):
 
     def get(self, request):
         courses = Course.objects.filter(instructor=request.user)
-        enrollments = Enrollment.objects.filter(course__in=courses)
         
-        # FIX 1: Count distinct users, not raw progress fragment rows!
-        total_unique_students = enrollments.values('user').distinct().count()
-        
-        # FIX 2: Global completion is determined by actual earned certificates
+        # Because we fixed the database constraint, 1 Enrollment = 1 User now!
+        total_unique_students = Enrollment.objects.filter(course__in=courses).count()
         total_certificates = Certificate.objects.filter(course__in=courses).count()
         
         overall_completion_rate = int((total_certificates / total_unique_students) * 100) if total_unique_students > 0 else 0
@@ -331,16 +303,10 @@ class InstructorAnalyticsView(APIView):
         total_revenue = 0.0
 
         for course in courses:
-            course_enrollments = enrollments.filter(course=course)
-            
-            # 1 User = 1 Student, regardless of how many lessons they watched
-            course_total_students = course_enrollments.values('user').distinct().count()
-            
-            # Completion is determined by whether they earned the final certificate
+            course_total_students = Enrollment.objects.filter(course=course).count()
             course_certs = Certificate.objects.filter(course=course).count()
             rate = int((course_certs / course_total_students) * 100) if course_total_students > 0 else 0
             
-            # Revenue is Price * Distinct Users
             revenue = float(course_total_students * course.price)
             total_revenue += revenue
             
@@ -372,18 +338,14 @@ class RegisterUserView(APIView):
         password = request.data.get('password')
         role = request.data.get('role', 'EMPLOYEE') 
         
-        if not username or not password: 
-            return Response({"error": "Required fields missing."}, status=status.HTTP_400_BAD_REQUEST)
-        if User.objects.filter(username=username).exists(): 
-            return Response({"error": "Username taken."}, status=status.HTTP_400_BAD_REQUEST)
+        if not username or not password: return Response({"error": "Required fields missing."}, status=status.HTTP_400_BAD_REQUEST)
+        if User.objects.filter(username=username).exists(): return Response({"error": "Username taken."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            # 1. Create the user and profile
             user = User.objects.create_user(username=username, email=email, password=password)
             UserProfile.objects.create(user=user, role=role.upper())
             
-            # 2. SPRINT 3: Send Welcome Email Pipeline (ISOLATED)
-            if email:  # Only attempt to send if they actually provided an email
+            if email:  
                 try:
                     send_mail(
                         subject="Welcome to SkillStream Workspace",
@@ -393,13 +355,9 @@ class RegisterUserView(APIView):
                         fail_silently=True,
                     )
                 except Exception as mail_error:
-                    # This prints the error to your Render logs so you can debug it later, 
-                    # but it STOPS the error from crashing the registration process!
                     print(f"Warning: Email failed to send - {str(mail_error)}")
             
-            # 3. Always return success if the user was created
             return Response({"message": "User created successfully."}, status=status.HTTP_201_CREATED)
-            
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -416,7 +374,6 @@ class CreateStripeCheckoutSessionView(APIView):
                     'quantity': 1,
                 }],
                 mode='payment',
-                # FIXED: Dynamically route back to local or production
                 success_url=f"{settings.FRONTEND_URL}/success?course_id={course.id}",
                 cancel_url=f"{settings.FRONTEND_URL}/catalog",
                 client_reference_id=str(request.user.id) 
@@ -435,17 +392,16 @@ class StripeSuccessEnrollmentView(APIView):
         try:
             course = Course.objects.get(id=course_id)
             expiration_date = timezone.now() + timedelta(days=course.validity_days)
-            enrollments = Enrollment.objects.filter(user=request.user, course_id=course_id)
             
-            if enrollments.exists():
-                enrollment = enrollments.first()
-                if enrollment.expires_at is None or enrollment.expires_at < timezone.now():
-                    enrollment.expires_at = expiration_date
-                    enrollment.save()
-            else:
-                Enrollment.objects.create(user=request.user, course_id=course_id, expires_at=expiration_date)
-                
-                # SPRINT 3: Dispatch Automated Purchase Receipt
+            # THE FIX: Safely Get OR Create, ensuring duplicate rows are impossible!
+            enrollment, created = Enrollment.objects.get_or_create(user=request.user, course_id=course_id)
+            
+            # Update the expiration regardless of whether it's new or existing
+            enrollment.expires_at = expiration_date
+            enrollment.save()
+            
+            # ONLY send the email if it is a brand new enrollment
+            if created:
                 send_mail(
                     subject=f"Enrollment Confirmed: {course.title}",
                     message=f"Hi {request.user.username},\n\nYour payment transaction was successful. You now have full access to {course.title} for the next {course.validity_days} days.\n\nLog in to your workspace to start upskilling immediately.\n\nThank you,\nSkillStream",
@@ -458,13 +414,11 @@ class StripeSuccessEnrollmentView(APIView):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
 class UnenrollCourseView(APIView):
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, course_id):
         try:
-            # Delete all enrollment records for this user and course
             deleted_count, _ = Enrollment.objects.filter(user=request.user, course_id=course_id).delete()
             if deleted_count > 0:
                 return Response({"message": "Successfully unsubscribed."}, status=status.HTTP_200_OK)

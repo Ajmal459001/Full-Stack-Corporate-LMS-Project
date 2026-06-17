@@ -73,7 +73,6 @@ class Review(models.Model):
 # --- SPRINT 2: ASSESSMENTS & QUIZZES ---
 
 class Quiz(models.Model):
-    """The final assessment attached to a course."""
     course = models.OneToOneField(Course, on_delete=models.CASCADE, related_name='quiz')
     title = models.CharField(max_length=255, default="Final Course Assessment")
     passing_score = models.PositiveIntegerField(default=80, help_text="Percentage required to pass (e.g., 80)")
@@ -101,7 +100,6 @@ class Choice(models.Model):
         return f"{self.text} ({'Correct' if self.is_correct else 'Incorrect'})"
 
 class QuizAttempt(models.Model):
-    """Tracks a student's performance on a quiz."""
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='attempts')
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='quiz_attempts')
     score = models.FloatField(help_text="Percentage scored")
@@ -112,23 +110,29 @@ class QuizAttempt(models.Model):
         return f"{self.user.username} - {self.quiz.course.title} - {self.score}%"
 
 
-# --- EXISTING ENTERPRISE MODELS ---
+# --- ENTERPRISE MODELS (FIXED ARCHITECTURE) ---
 
 class Enrollment(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='enrollments')
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='enrolled_students')
-    last_watched_lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, null=True, blank=True)
+    
+    # Tracks exactly where they paused the video
+    last_watched_lesson = models.ForeignKey(Lesson, on_delete=models.SET_NULL, null=True, blank=True)
     last_timestamp = models.FloatField(default=0.0)
-    is_completed = models.BooleanField(default=False)
+    
+    # NEW: A ManyToMany field tracks completed lessons cleanly inside THIS SINGLE record!
+    completed_lessons = models.ManyToManyField(Lesson, blank=True, related_name='completed_by')
+    
     enrolled_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True) 
 
     class Meta:
-        unique_together = ('user', 'course', 'last_watched_lesson') 
+        # STRICT RULE: 1 User + 1 Course = ONLY 1 Enrollment Record
+        unique_together = ('user', 'course') 
 
     def __str__(self):
-        return f"{self.user.username} - {self.course.title} - Lesson {self.last_watched_lesson_id}"
+        return f"{self.user.username} - {self.course.title}"
 
 class Certificate(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False) 

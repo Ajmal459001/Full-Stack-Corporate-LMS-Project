@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Container, Row, Col, Card, Badge, Button, Form, Navbar, Pagination, Alert, ProgressBar, Spinner } from 'react-bootstrap';
 import api from '../api';
-import axios from 'axios'; // Required for direct-to-Cloudinary bypass
+import axios from 'axios'; 
 import { useTheme } from '../context/ThemeContext';
 import AuthContext from '../context/AuthContext'; 
 
@@ -25,8 +25,8 @@ const Dashboard = () => {
 
     const [showAddForm, setShowAddForm] = useState(false);
     const [editingCourseId, setEditingCourseId] = useState(null);
-    const [isSubmitting, setIsSubmitting] = useState(false); // NEW: Track upload state
-    const [uploadStatus, setUploadStatus] = useState(''); // NEW: Show what is happening
+    const [isSubmitting, setIsSubmitting] = useState(false); 
+    const [uploadStatus, setUploadStatus] = useState(''); 
     
     const [newCourse, setNewCourse] = useState({
         title: '',
@@ -122,7 +122,6 @@ const Dashboard = () => {
         setError('');
         
         try {
-            // 1. We no longer use FormData because we are sending JSON to Django
             const coursePayload = {
                 title: newCourse.title,
                 description: newCourse.description,
@@ -132,16 +131,18 @@ const Dashboard = () => {
                 validity_days: newCourse.validity_days,
             };
 
-            // 2. Direct-to-Cloud Thumbnail Upload
+            // THE FIX: We explicitly map the URL to 'thumbnail' so Django catches it.
             if (newCourse.thumbnail && typeof newCourse.thumbnail !== 'string') {
                 setUploadStatus('Uploading cover image to cloud...');
                 const secureUrl = await uploadMediaToCloudinary(newCourse.thumbnail);
-                coursePayload.thumbnail_url = secureUrl; // We send the string URL to Django
+                coursePayload.thumbnail = secureUrl; 
+            } else if (typeof newCourse.thumbnail === 'string') {
+                // If editing, preserve the existing Cloudinary URL
+                coursePayload.thumbnail = newCourse.thumbnail;
             }
 
             setUploadStatus('Saving course matrix...');
 
-            // 3. Send final text data to Django
             if (editingCourseId) {
                 await api.patch(`/api/courses/${editingCourseId}/`, coursePayload);
                 setNewCourse({ title: '', description: '', category: 'Frontend Web Development', difficulty: 'BEGINNER', price: 49.99, validity_days: 30, thumbnail: null });
@@ -168,7 +169,7 @@ const Dashboard = () => {
             difficulty: course.difficulty,
             price: course.price || 49.99,
             validity_days: course.validity_days || 30,
-            thumbnail: null // We don't load the existing file object, just let them pick a new one if they want
+            thumbnail: course.thumbnail // THE FIX: Pre-load the existing image URL during edits
         });
         setEditingCourseId(course.id);
         setShowAddForm(true);
@@ -304,6 +305,9 @@ const Dashboard = () => {
                                                 {editingCourseId ? "Update Thumbnail Image (Leave blank to keep current)" : "Course Thumbnail Image"}
                                             </Form.Label>
                                             <Form.Control type="file" accept="image/*" onChange={(e) => setNewCourse({ ...newCourse, thumbnail: e.target.files[0] })} className={isDarkMode ? 'bg-dark text-white border-secondary' : ''} />
+                                            {editingCourseId && newCourse.thumbnail && typeof newCourse.thumbnail === 'string' && (
+                                                <small className="text-info d-block mt-1">An image is currently active.</small>
+                                            )}
                                         </Form.Group>
                                     </Col>
                                     

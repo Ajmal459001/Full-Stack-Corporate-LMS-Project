@@ -40,20 +40,9 @@ class CourseViewSet(viewsets.ModelViewSet):
         if difficulty_param: queryset = queryset.filter(difficulty=difficulty_param)
         return queryset
 
-    # THE FIX: Safely map the incoming Cloudinary URL string into the database
+    # THE FIX: We only need perform_create to attach the instructor. DRF automatically maps 'thumbnail' from JSON now!
     def perform_create(self, serializer):
-        thumbnail_url = self.request.data.get('thumbnail_url')
-        if thumbnail_url:
-            serializer.save(instructor=self.request.user, thumbnail=thumbnail_url)
-        else:
-            serializer.save(instructor=self.request.user)
-
-    def perform_update(self, serializer):
-        thumbnail_url = self.request.data.get('thumbnail_url')
-        if thumbnail_url:
-            serializer.save(thumbnail=thumbnail_url)
-        else:
-            serializer.save()
+        serializer.save(instructor=self.request.user)
 
     @action(detail=False, methods=['get'])
     def my_workspace(self, request):
@@ -71,7 +60,6 @@ class CourseViewSet(viewsets.ModelViewSet):
             ).values_list('course_id', flat=True)
             queryset = Course.objects.filter(id__in=enrolled_course_ids).order_by('-id')
 
-        # THE FIX: Actively fetch and apply the category/difficulty filters for the workspace!
         search_param = request.query_params.get('search')
         category_param = request.query_params.get('category')
         difficulty_param = request.query_params.get('difficulty')

@@ -61,7 +61,8 @@ class CourseSerializer(serializers.ModelSerializer):
     # Expose the quiz summary so the frontend knows if an exam exists
     quiz = QuizSerializer(read_only=True)
 
-    thumbnail = serializers.ImageField(required=False, allow_null=True)
+    # THE FIX: Changed from ImageField to URLField so DRF accepts the Cloudinary string!
+    thumbnail = serializers.URLField(required=False, allow_null=True, allow_blank=True)
 
     class Meta:
         model = Course

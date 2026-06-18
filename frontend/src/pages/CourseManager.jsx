@@ -1,8 +1,9 @@
 // frontend/src/pages/CourseManager.jsx
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Container, Row, Col, Card, Button, Form, Alert, ListGroup, Badge, ButtonGroup, InputGroup } from 'react-bootstrap';
-import api from '../api'; // FIXED: Imported central API instance
+import { Container, Row, Col, Card, Button, Form, Alert, ListGroup, Badge, ButtonGroup, InputGroup, Spinner } from 'react-bootstrap';
+import api from '../api'; 
+import axios from 'axios'; // Required for direct-to-Cloudinary bypass
 import { useTheme } from '../context/ThemeContext';
 
 const CourseManager = () => {
@@ -19,9 +20,16 @@ const CourseManager = () => {
     
     // Curriculum States
     const [newLesson, setNewLesson] = useState({ title: '', video_url: '', order: 1 });
-    const [isSubmitting, setIsSubmitting] = useState(false);
     const [editingLessonId, setEditingLessonId] = useState(null);
     const [newResource, setNewResource] = useState({ title: '', file_url: '' });
+
+    // Cloudinary Media Upload States
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [uploadStatus, setUploadStatus] = useState('');
+    const [videoFile, setVideoFile] = useState(null);
+    const [pdfFile, setPdfFile] = useState(null);
+    const [pdfTitle, setPdfTitle] = useState('');
+    const [resourceFile, setResourceFile] = useState(null); // For attaching to existing lessons
 
     // Assessment States
     const [questionText, setQuestionText] = useState('');
@@ -38,7 +46,6 @@ const CourseManager = () => {
 
     const fetchCourseData = async () => {
         try {
-            // FIXED: Stripped localhost and manual headers
             const courseRes = await api.get(`/api/courses/${courseId}/`);
             setCourse(courseRes.data);
             
@@ -54,40 +61,84 @@ const CourseManager = () => {
         }
     };
 
+    // --- DIRECT-TO-CLOUD UPLOAD HELPER ---
+    const uploadMediaToCloudinary = async (file) => {
+        const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+        const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+        if (!cloudName || !uploadPreset) {
+            throw new Error("Cloudinary Environment Variables are missing!");
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', uploadPreset);
+
+        // Using /auto/ allows Cloudinary to automatically detect video vs pdf vs image
+        const res = await axios.post(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, formData);
+        return res.data.secure_url;
+    };
+
     // --- SPRINT 1: Curriculum & Resources Logic ---
     const handleAddOrUpdateLesson = async (e) => {
         e.preventDefault();
         setIsSubmitting(true);
         setError('');
         setSuccessMsg(''); 
+        setUploadStatus('Initializing upload...');
         
         try {
+            let finalVideoUrl = newLesson.video_url; 
+            let finalPdfUrl = null;
+
+            // 1. Upload Video if selected
+            if (videoFile) {
+                setUploadStatus('Uploading Video to Cloudinary (this may take a moment)...');
+                finalVideoUrl = await uploadMediaToCloudinary(videoFile);
+            } else if (!editingLessonId && !finalVideoUrl) {
+                throw new Error("A video file is required to create a new lesson.");
+            }
+
+            // 2. Upload PDF if selected during creation
+            if (pdfFile) {
+                setUploadStatus('Uploading PDF Resource...');
+                finalPdfUrl = await uploadMediaToCloudinary(pdfFile);
+            }
+
+            setUploadStatus('Saving to Database...');
+            let savedLessonId = editingLessonId;
+
             if (editingLessonId) {
-                // UPDATE EXISTING LESSON - FIXED: Stripped localhost
-                await api.patch(`/api/courses/lessons/${editingLessonId}/`, newLesson);
-                
+                await api.patch(`/api/courses/lessons/${editingLessonId}/`, { ...newLesson, video_url: finalVideoUrl });
                 setSuccessMsg("Lesson updated successfully!"); 
-                handleCancelEdit(); 
             } else {
-                // CREATE NEW LESSON - FIXED: Stripped localhost
-                await api.post(`/api/courses/lessons/`, { course: courseId, ...newLesson });
-                
+                const res = await api.post(`/api/courses/lessons/`, { course: courseId, ...newLesson, video_url: finalVideoUrl });
+                savedLessonId = res.data.id;
                 setSuccessMsg("New lesson added successfully!");
-                setNewLesson({ title: '', video_url: '', order: lessons.length + 2 });
+            }
+
+            // 3. Link the uploaded PDF to the newly created lesson
+            if (finalPdfUrl && pdfTitle) {
+                await api.post(`/api/courses/resources/`, { lesson: savedLessonId, title: pdfTitle, file_url: finalPdfUrl });
             }
             
+            handleCancelEdit();
             await fetchCourseData(); 
             
         } catch (err) { 
-            setError("Failed to save lesson."); 
+            setError(err.message || "Failed to save lesson pipeline."); 
         } finally { 
             setIsSubmitting(false); 
+            setUploadStatus('');
         }
     };
 
     const handleEditClick = (lesson) => {
         setEditingLessonId(lesson.id);
         setNewLesson({ title: lesson.title, video_url: lesson.video_url, order: lesson.order });
+        setVideoFile(null);
+        setPdfFile(null);
+        setPdfTitle('');
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
@@ -95,12 +146,15 @@ const CourseManager = () => {
         setEditingLessonId(null);
         setNewLesson({ title: '', video_url: '', order: lessons.length + 1 });
         setNewResource({ title: '', file_url: '' });
+        setVideoFile(null);
+        setPdfFile(null);
+        setPdfTitle('');
+        setResourceFile(null);
     };
 
     const handleDeleteLesson = async (lessonId) => {
         if (!window.confirm("Delete this video module?")) return;
         try {
-            // FIXED: Stripped localhost
             await api.delete(`/api/courses/lessons/${lessonId}/`);
             if (editingLessonId === lessonId) handleCancelEdit();
             fetchCourseData(); 
@@ -108,18 +162,33 @@ const CourseManager = () => {
     };
 
     const handleAddResource = async () => {
-        if (!newResource.title || !newResource.file_url) return setError("Resource title and URL required.");
+        if (!newResource.title || (!newResource.file_url && !resourceFile)) {
+            return setError("Resource title and file required.");
+        }
+        
+        setIsSubmitting(true);
+        setError('');
+        setUploadStatus('Uploading Resource...');
         try {
-            // FIXED: Stripped localhost
-            await api.post(`/api/courses/resources/`, { lesson: editingLessonId, ...newResource });
+            let finalFileUrl = newResource.file_url;
+            if (resourceFile) {
+                finalFileUrl = await uploadMediaToCloudinary(resourceFile);
+            }
+
+            await api.post(`/api/courses/resources/`, { lesson: editingLessonId, title: newResource.title, file_url: finalFileUrl });
             setNewResource({ title: '', file_url: '' });
+            setResourceFile(null);
             fetchCourseData(); 
-        } catch (err) { setError("Failed to attach resource."); }
+        } catch (err) { 
+            setError(err.message || "Failed to attach resource."); 
+        } finally {
+            setIsSubmitting(false);
+            setUploadStatus('');
+        }
     };
 
     const handleDeleteResource = async (resourceId) => {
         try {
-            // FIXED: Stripped localhost
             await api.delete(`/api/courses/resources/${resourceId}/`);
             fetchCourseData(); 
         } catch (err) { setError("Failed to delete resource."); }
@@ -128,7 +197,6 @@ const CourseManager = () => {
     // --- SPRINT 2: Assessment Builder Logic ---
     const handleCreateQuiz = async () => {
         try {
-            // FIXED: Removed manual headers
             await api.post('/api/courses/quizzes/', {
                 course: courseId, title: 'Final Course Assessment', passing_score: 80
             });
@@ -142,7 +210,6 @@ const CourseManager = () => {
         
         setIsSubmitting(true);
         try {
-            // FIXED: Removed manual headers
             const qRes = await api.post('/api/courses/questions/', {
                 quiz: course.quiz.id, text: questionText, order: course.quiz.questions ? course.quiz.questions.length + 1 : 1
             });
@@ -160,7 +227,6 @@ const CourseManager = () => {
     const handleDeleteQuestion = async (qId) => {
         if(!window.confirm("Delete this question?")) return;
         try {
-            // FIXED: Stripped localhost
             await api.delete(`/api/courses/questions/${qId}/`);
             fetchCourseData();
         } catch(err) { setError("Failed to delete question."); }
@@ -191,11 +257,9 @@ const CourseManager = () => {
                 </Col>
 
                 <Col md={8}>
-                    {/* Error and Success Banners */}
                     {error && <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert>}
                     {successMsg && <Alert variant="success" onClose={() => setSuccessMsg('')} dismissible>{successMsg}</Alert>}
                     
-                    {/* Tab Navigation System */}
                     <ButtonGroup className="w-100 mb-4 shadow-sm rounded-pill overflow-hidden">
                         <Button 
                             variant={activeTab === 'curriculum' ? 'primary' : (isDarkMode ? 'dark' : 'light')} 
@@ -230,20 +294,47 @@ const CourseManager = () => {
                                                 <Form.Label className="small fw-semibold">Playback Order</Form.Label>
                                                 <Form.Control type="number" required min="1" className={isDarkMode ? 'bg-dark text-light border-secondary' : 'bg-light text-dark'} value={newLesson.order} onChange={e => setNewLesson({...newLesson, order: parseInt(e.target.value)})} />
                                             </Col>
+                                            
+                                            {/* CLOUDINARY DIRECT UPLOAD FILE INPUT */}
                                             <Col md={12}>
-                                                <Form.Label className="small fw-semibold">Stream URL (MP4 / WebM)</Form.Label>
-                                                <Form.Control type="url" required className={isDarkMode ? 'bg-dark text-light border-secondary' : 'bg-light text-dark'} value={newLesson.video_url} onChange={e => setNewLesson({...newLesson, video_url: e.target.value})} />
+                                                <Form.Label className="small fw-semibold">Video Module (MP4 / WebM)</Form.Label>
+                                                <Form.Control 
+                                                    type="file" 
+                                                    accept="video/*" 
+                                                    className={isDarkMode ? 'bg-dark text-light border-secondary' : 'bg-light text-dark'} 
+                                                    onChange={e => setVideoFile(e.target.files[0])} 
+                                                />
+                                                {editingLessonId && newLesson.video_url && (
+                                                    <small className="text-muted d-block mt-1">A video is currently attached. Upload a new file to replace it.</small>
+                                                )}
                                             </Col>
                                         </Row>
+
+                                        {/* SIMULTANEOUS PDF UPLOAD UI */}
+                                        {!editingLessonId && (
+                                            <div className={`mt-3 pt-3 border-top ${isDarkMode ? 'border-secondary' : 'border-light'}`}>
+                                                <h6 className="fw-bold fs-6 mb-2">📁 Attach Document Resource (Optional)</h6>
+                                                <Row className="g-3">
+                                                    <Col md={6}>
+                                                        <Form.Control type="text" size="sm" placeholder="Resource Title (e.g. Cheat Sheet)" className={isDarkMode ? 'bg-dark text-light border-secondary' : 'bg-white'} value={pdfTitle} onChange={e => setPdfTitle(e.target.value)} />
+                                                    </Col>
+                                                    <Col md={6}>
+                                                        <Form.Control type="file" size="sm" accept=".pdf,.zip,.doc,.docx" className={isDarkMode ? 'bg-dark text-light border-secondary' : 'bg-white'} onChange={e => setPdfFile(e.target.files[0])} />
+                                                    </Col>
+                                                </Row>
+                                            </div>
+                                        )}
+
                                         <div className="d-flex gap-2 mt-4">
-                                            <Button variant={editingLessonId ? "warning" : "success"} type="submit" className="rounded-pill px-4 fw-bold shadow-sm" disabled={isSubmitting}>
-                                                {isSubmitting ? 'Saving...' : (editingLessonId ? 'Update Lesson Basics' : 'Save Lesson Pipeline')}
+                                            <Button variant={editingLessonId ? "warning" : "success"} type="submit" className="rounded-pill px-4 fw-bold shadow-sm d-flex align-items-center gap-2" disabled={isSubmitting}>
+                                                {isSubmitting && <Spinner size="sm" />}
+                                                {isSubmitting ? (uploadStatus || 'Processing...') : (editingLessonId ? 'Update Lesson Basics' : 'Save Lesson Pipeline')}
                                             </Button>
                                             {editingLessonId && <Button variant="outline-secondary" className="rounded-pill px-4 fw-bold" onClick={handleCancelEdit}>Close Editor</Button>}
                                         </div>
                                     </Form>
 
-                                    {/* Downloadable Resources Form */}
+                                    {/* Downloadable Resources Form (For existing lessons) */}
                                     {editingLessonId && (
                                         <div className={`mt-4 pt-4 border-top ${isDarkMode ? 'border-secondary' : 'border-light'}`}>
                                             <h6 className="fw-bold mb-3">📁 Attach Resources</h6>
@@ -254,9 +345,17 @@ const CourseManager = () => {
                                                 </div>
                                             ))}
                                             <Row className="g-2 mt-3 align-items-end">
-                                                <Col md={5}><Form.Control type="text" size="sm" className={isDarkMode ? 'bg-dark text-light border-secondary' : 'bg-white'} value={newResource.title} onChange={e => setNewResource({...newResource, title: e.target.value})} placeholder="Title (e.g. Starter.zip)"/></Col>
-                                                <Col md={5}><Form.Control type="url" size="sm" className={isDarkMode ? 'bg-dark text-light border-secondary' : 'bg-white'} value={newResource.file_url} onChange={e => setNewResource({...newResource, file_url: e.target.value})} placeholder="URL (https://...)"/></Col>
-                                                <Col md={2}><Button variant="primary" size="sm" className="w-100 fw-bold" onClick={handleAddResource}>Attach</Button></Col>
+                                                <Col md={4}>
+                                                    <Form.Control type="text" size="sm" className={isDarkMode ? 'bg-dark text-light border-secondary' : 'bg-white'} value={newResource.title} onChange={e => setNewResource({...newResource, title: e.target.value})} placeholder="Title (e.g. Starter.zip)"/>
+                                                </Col>
+                                                <Col md={5}>
+                                                    <Form.Control type="file" size="sm" accept=".pdf,.zip,.doc,.docx" className={isDarkMode ? 'bg-dark text-light border-secondary' : 'bg-white'} onChange={e => setResourceFile(e.target.files[0])} />
+                                                </Col>
+                                                <Col md={3}>
+                                                    <Button variant="primary" size="sm" className="w-100 fw-bold d-flex align-items-center justify-content-center gap-2" onClick={handleAddResource} disabled={isSubmitting}>
+                                                        {isSubmitting ? <Spinner size="sm" /> : 'Attach File'}
+                                                    </Button>
+                                                </Col>
                                             </Row>
                                         </div>
                                     )}

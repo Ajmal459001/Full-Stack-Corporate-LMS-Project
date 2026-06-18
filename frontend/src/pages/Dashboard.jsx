@@ -1,8 +1,9 @@
 // frontend/src/pages/Dashboard.jsx
 import { useState, useEffect, useCallback, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Container, Row, Col, Card, Badge, Button, Form, Navbar, Pagination, Alert, ProgressBar } from 'react-bootstrap';
-import api from '../api'; // FIXED: Replaced raw axios with your custom instance
+import { Container, Row, Col, Card, Badge, Button, Form, Navbar, Pagination, Alert, ProgressBar, Spinner } from 'react-bootstrap';
+import api from '../api';
+import axios from 'axios'; // Required for direct-to-Cloudinary bypass
 import { useTheme } from '../context/ThemeContext';
 import AuthContext from '../context/AuthContext'; 
 
@@ -24,6 +25,9 @@ const Dashboard = () => {
 
     const [showAddForm, setShowAddForm] = useState(false);
     const [editingCourseId, setEditingCourseId] = useState(null);
+    const [isSubmitting, setIsSubmitting] = useState(false); // NEW: Track upload state
+    const [uploadStatus, setUploadStatus] = useState(''); // NEW: Show what is happening
+    
     const [newCourse, setNewCourse] = useState({
         title: '',
         description: '',
@@ -37,7 +41,6 @@ const Dashboard = () => {
     useEffect(() => {
         const fetchUserProfile = async () => {
             try {
-                // FIXED: Removed hardcoded URL and manual token headers
                 const res = await api.get('/api/auth/user/');
                 setUserProfile(res.data);
             } catch (err) {
@@ -49,13 +52,16 @@ const Dashboard = () => {
 
     const fetchCourses = useCallback(async () => {
         try {
-            // FIXED: Removed hardcoded localhost domain from the string interpolation
-            let url = `/api/courses/my_workspace/?search=${search}&page=${currentPage}&_t=${new Date().getTime()}`;
+            const queryParams = {
+                page: currentPage,
+                _t: new Date().getTime()
+            };
             
-            if (category) url += `&category=${category}`;
-            if (difficulty) url += `&difficulty=${difficulty}`;
+            if (search) queryParams.search = search;
+            if (category) queryParams.category = category;
+            if (difficulty) queryParams.difficulty = difficulty;
 
-            const res = await api.get(url);
+            const res = await api.get('/api/courses/my_workspace/', { params: queryParams });
 
             let loadedCourses = [];
             if (res.data && res.data.results) {
@@ -72,7 +78,6 @@ const Dashboard = () => {
             const newStatsMap = {};
             await Promise.all(loadedCourses.map(async (c) => {
                 try {
-                    // FIXED: Removed hardcoded localhost domain
                     const statRes = await api.get(`/api/courses/stats/${c.id}/`);
                     newStatsMap[c.id] = {
                         progress: statRes.data.percentage,
@@ -94,34 +99,64 @@ const Dashboard = () => {
         fetchCourses();
     }, [fetchCourses]);
 
+    // --- DIRECT-TO-CLOUD UPLOAD HELPER ---
+    const uploadMediaToCloudinary = async (file) => {
+        const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+        const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+        if (!cloudName || !uploadPreset) {
+            throw new Error("Cloudinary Environment Variables are missing!");
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', uploadPreset);
+
+        const res = await axios.post(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, formData);
+        return res.data.secure_url;
+    };
+
     const handleSubmitCourse = async (e) => {
         e.preventDefault();
+        setIsSubmitting(true);
+        setError('');
+        
         try {
-            const formData = new FormData();
-            formData.append('title', newCourse.title);
-            formData.append('description', newCourse.description);
-            formData.append('category', newCourse.category);
-            formData.append('difficulty', newCourse.difficulty);
-            formData.append('price', newCourse.price); 
-            formData.append('validity_days', newCourse.validity_days); 
+            // 1. We no longer use FormData because we are sending JSON to Django
+            const coursePayload = {
+                title: newCourse.title,
+                description: newCourse.description,
+                category: newCourse.category,
+                difficulty: newCourse.difficulty,
+                price: newCourse.price,
+                validity_days: newCourse.validity_days,
+            };
 
-            if (newCourse.thumbnail) {
-                formData.append('thumbnail', newCourse.thumbnail);
+            // 2. Direct-to-Cloud Thumbnail Upload
+            if (newCourse.thumbnail && typeof newCourse.thumbnail !== 'string') {
+                setUploadStatus('Uploading cover image to cloud...');
+                const secureUrl = await uploadMediaToCloudinary(newCourse.thumbnail);
+                coursePayload.thumbnail_url = secureUrl; // We send the string URL to Django
             }
 
+            setUploadStatus('Saving course matrix...');
+
+            // 3. Send final text data to Django
             if (editingCourseId) {
-                // FIXED: Stripped hardcoded URL
-                await api.patch(`/api/courses/${editingCourseId}/`, formData);
+                await api.patch(`/api/courses/${editingCourseId}/`, coursePayload);
                 setNewCourse({ title: '', description: '', category: 'Frontend Web Development', difficulty: 'BEGINNER', price: 49.99, validity_days: 30, thumbnail: null });
                 setEditingCourseId(null);
                 setShowAddForm(false);
                 fetchCourses();
             } else {
-                const res = await api.post('/api/courses/', formData);
+                const res = await api.post('/api/courses/', coursePayload);
                 navigate(`/manage/course/${res.data.id}`);
             }
         } catch (err) {
-            setError(editingCourseId ? "Failed to update course." : "Failed to create the course track module.");
+            setError(err.message || (editingCourseId ? "Failed to update course." : "Failed to create the course track module."));
+        } finally {
+            setIsSubmitting(false);
+            setUploadStatus('');
         }
     };
 
@@ -133,7 +168,7 @@ const Dashboard = () => {
             difficulty: course.difficulty,
             price: course.price || 49.99,
             validity_days: course.validity_days || 30,
-            thumbnail: null
+            thumbnail: null // We don't load the existing file object, just let them pick a new one if they want
         });
         setEditingCourseId(course.id);
         setShowAddForm(true);
@@ -143,7 +178,6 @@ const Dashboard = () => {
     const handleDeleteCourse = async (courseId) => {
         if (!window.confirm("Are you absolutely sure you want to delete this course entirely? This cannot be undone.")) return;
         try {
-            // FIXED: Stripped hardcoded URL
             await api.delete(`/api/courses/${courseId}/`);
             setCourses(courses.filter(c => c.id !== courseId));
         } catch (err) {
@@ -155,7 +189,6 @@ const Dashboard = () => {
         if (!window.confirm("Are you sure you want to drop this course? You will lose access and need to re-enroll.")) return;
         
         try {
-            // FIXED: Stripped hardcoded URL
             await api.delete(`/api/courses/${courseId}/unenroll/`);
             setCourses(courses.filter(c => c.id !== courseId));
         } catch (err) {
@@ -281,8 +314,9 @@ const Dashboard = () => {
                                         </Form.Group>
                                     </Col>
                                 </Row>
-                                <Button variant={editingCourseId ? "warning" : "success"} type="submit" className="rounded-pill px-4 mt-3 float-end">
-                                    {editingCourseId ? "Save Changes" : "Commit & Publish Module"}
+                                <Button variant={editingCourseId ? "warning" : "success"} type="submit" className="rounded-pill px-4 mt-3 float-end d-flex align-items-center gap-2" disabled={isSubmitting}>
+                                    {isSubmitting && <Spinner size="sm" />}
+                                    {isSubmitting ? (uploadStatus || 'Processing...') : (editingCourseId ? "Save Changes" : "Commit & Publish Module")}
                                 </Button>
                             </Form>
                         </Card.Body>

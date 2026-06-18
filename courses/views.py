@@ -40,8 +40,20 @@ class CourseViewSet(viewsets.ModelViewSet):
         if difficulty_param: queryset = queryset.filter(difficulty=difficulty_param)
         return queryset
 
+    # THE FIX: Safely map the incoming Cloudinary URL string into the database
     def perform_create(self, serializer):
-        serializer.save(instructor=self.request.user)
+        thumbnail_url = self.request.data.get('thumbnail_url')
+        if thumbnail_url:
+            serializer.save(instructor=self.request.user, thumbnail=thumbnail_url)
+        else:
+            serializer.save(instructor=self.request.user)
+
+    def perform_update(self, serializer):
+        thumbnail_url = self.request.data.get('thumbnail_url')
+        if thumbnail_url:
+            serializer.save(thumbnail=thumbnail_url)
+        else:
+            serializer.save()
 
     @action(detail=False, methods=['get'])
     def my_workspace(self, request):
@@ -59,8 +71,14 @@ class CourseViewSet(viewsets.ModelViewSet):
             ).values_list('course_id', flat=True)
             queryset = Course.objects.filter(id__in=enrolled_course_ids).order_by('-id')
 
+        # THE FIX: Actively fetch and apply the category/difficulty filters for the workspace!
         search_param = request.query_params.get('search')
+        category_param = request.query_params.get('category')
+        difficulty_param = request.query_params.get('difficulty')
+
         if search_param: queryset = queryset.filter(title__icontains=search_param)
+        if category_param: queryset = queryset.filter(category__icontains=category_param)
+        if difficulty_param: queryset = queryset.filter(difficulty=difficulty_param)
 
         page = self.paginate_queryset(queryset)
         if page is not None:
@@ -212,7 +230,6 @@ class CourseCompletionStatsView(APIView):
             
             enrollment = Enrollment.objects.filter(user=request.user, course_id=course_id).first()
             
-            # 1. Calculate Progress properly utilizing the M2M field
             if total_lessons == 0 or not enrollment:
                 percentage = 0
                 completed_lesson_ids = []
@@ -220,7 +237,6 @@ class CourseCompletionStatsView(APIView):
                 completed_lesson_ids = list(enrollment.completed_lessons.values_list('id', flat=True))
                 percentage = int((len(completed_lesson_ids) / total_lessons) * 100)
 
-            # 2. Calculate Accurate Time Remaining
             if enrollment and enrollment.expires_at:
                 time_remaining = enrollment.expires_at - timezone.now()
                 days_remaining = max(0, time_remaining.days)
@@ -229,7 +245,6 @@ class CourseCompletionStatsView(APIView):
                 days_remaining = course.validity_days
                 is_expiring_soon = False
 
-            # 3. Calculate Quiz Status
             quiz_passed = False
             best_score = 0
             if hasattr(course, 'quiz'):
@@ -293,7 +308,6 @@ class InstructorAnalyticsView(APIView):
     def get(self, request):
         courses = Course.objects.filter(instructor=request.user)
         
-        # Because we fixed the database constraint, 1 Enrollment = 1 User now!
         total_unique_students = Enrollment.objects.filter(course__in=courses).count()
         total_certificates = Certificate.objects.filter(course__in=courses).count()
         
@@ -393,14 +407,11 @@ class StripeSuccessEnrollmentView(APIView):
             course = Course.objects.get(id=course_id)
             expiration_date = timezone.now() + timedelta(days=course.validity_days)
             
-            # THE FIX: Safely Get OR Create, ensuring duplicate rows are impossible!
             enrollment, created = Enrollment.objects.get_or_create(user=request.user, course_id=course_id)
             
-            # Update the expiration regardless of whether it's new or existing
             enrollment.expires_at = expiration_date
             enrollment.save()
             
-            # ONLY send the email if it is a brand new enrollment
             if created:
                 send_mail(
                     subject=f"Enrollment Confirmed: {course.title}",

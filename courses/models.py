@@ -15,7 +15,10 @@ class Course(models.Model):
 
     title = models.CharField(max_length=255)
     description = models.TextField()
-    thumbnail = models.ImageField(upload_to='course_thumbnails/', null=True, blank=True)
+    
+    # THE FIX: Changed from ImageField to URLField to handle Direct-to-Cloud URLs
+    thumbnail = models.URLField(max_length=800, null=True, blank=True, help_text="Direct Cloudinary URL")
+    
     category = models.CharField(max_length=100, db_index=True)
     difficulty = models.CharField(max_length=20, choices=DIFFICULTY_CHOICES, default='BEGINNER')
     
@@ -69,9 +72,6 @@ class Review(models.Model):
     def __str__(self):
         return f"{self.rating} Stars - {self.course.title} by {self.user.username}"
 
-
-# --- SPRINT 2: ASSESSMENTS & QUIZZES ---
-
 class Quiz(models.Model):
     course = models.OneToOneField(Course, on_delete=models.CASCADE, related_name='quiz')
     title = models.CharField(max_length=255, default="Final Course Assessment")
@@ -109,18 +109,13 @@ class QuizAttempt(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.quiz.course.title} - {self.score}%"
 
-
-# --- ENTERPRISE MODELS (FIXED ARCHITECTURE) ---
-
 class Enrollment(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='enrollments')
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='enrolled_students')
     
-    # Tracks exactly where they paused the video
     last_watched_lesson = models.ForeignKey(Lesson, on_delete=models.SET_NULL, null=True, blank=True)
     last_timestamp = models.FloatField(default=0.0)
     
-    # NEW: A ManyToMany field tracks completed lessons cleanly inside THIS SINGLE record!
     completed_lessons = models.ManyToManyField(Lesson, blank=True, related_name='completed_by')
     
     enrolled_at = models.DateTimeField(auto_now_add=True)
@@ -128,7 +123,6 @@ class Enrollment(models.Model):
     updated_at = models.DateTimeField(auto_now=True) 
 
     class Meta:
-        # STRICT RULE: 1 User + 1 Course = ONLY 1 Enrollment Record
         unique_together = ('user', 'course') 
 
     def __str__(self):

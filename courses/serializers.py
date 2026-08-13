@@ -73,6 +73,20 @@ class CourseSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['instructor']
 
+class CourseListSerializer(serializers.ModelSerializer):
+    instructor_username = serializers.ReadOnlyField(source='instructor.username')
+    average_rating = serializers.ReadOnlyField()
+
+    thumbnail = serializers.URLField(required=False, allow_null=True, allow_blank=True)
+
+    class Meta:
+        model = Course
+        fields = [
+            'id', 'title', 'description', 'thumbnail', 'category', 
+            'difficulty', 'instructor', 'instructor_username', 'created_at', 
+            'price', 'validity_days', 'average_rating'
+        ]
+
 class EnrollmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Enrollment

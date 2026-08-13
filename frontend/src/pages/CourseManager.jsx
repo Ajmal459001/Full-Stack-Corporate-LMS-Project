@@ -1,23 +1,26 @@
-// frontend/src/pages/CourseManager.jsx
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Container, Row, Col, Card, Button, Form, Alert, ListGroup, Badge, ButtonGroup, InputGroup, Spinner } from 'react-bootstrap';
-import api from '../api'; 
-import axios from 'axios'; // Required for direct-to-Cloudinary bypass
+import api from '../api';
+import axios from 'axios';
 import { useTheme } from '../context/ThemeContext';
+import { motion, AnimatePresence } from 'motion/react';
+import {
+    ArrowLeft, Image as ImageIcon, BookOpen, Target, Plus,
+    Edit, Trash2, FileText, CheckCircle2, XCircle, Loader2, AlertCircle, PlayCircle
+} from 'lucide-react';
 
 const CourseManager = () => {
     const { courseId } = useParams();
     const navigate = useNavigate();
     const { isDarkMode } = useTheme();
-    
+
     // Core States
     const [course, setCourse] = useState(null);
     const [lessons, setLessons] = useState([]);
     const [error, setError] = useState('');
-    const [successMsg, setSuccessMsg] = useState(''); 
-    const [activeTab, setActiveTab] = useState('curriculum'); 
-    
+    const [successMsg, setSuccessMsg] = useState('');
+    const [activeTab, setActiveTab] = useState('curriculum');
+
     // Curriculum States
     const [newLesson, setNewLesson] = useState({ title: '', video_url: '', order: 1 });
     const [editingLessonId, setEditingLessonId] = useState(null);
@@ -29,7 +32,7 @@ const CourseManager = () => {
     const [videoFile, setVideoFile] = useState(null);
     const [pdfFile, setPdfFile] = useState(null);
     const [pdfTitle, setPdfTitle] = useState('');
-    const [resourceFile, setResourceFile] = useState(null); // For attaching to existing lessons
+    const [resourceFile, setResourceFile] = useState(null);
 
     // Assessment States
     const [questionText, setQuestionText] = useState('');
@@ -48,11 +51,11 @@ const CourseManager = () => {
         try {
             const courseRes = await api.get(`/api/courses/${courseId}/`);
             setCourse(courseRes.data);
-            
+
             const rawLessons = courseRes.data.lessons || [];
             const sortedLessons = rawLessons.sort((a, b) => a.order - b.order);
             setLessons(sortedLessons);
-            
+
             if (!editingLessonId) {
                 setNewLesson(prev => ({ ...prev, order: sortedLessons.length + 1 }));
             }
@@ -61,7 +64,6 @@ const CourseManager = () => {
         }
     };
 
-    // --- DIRECT-TO-CLOUD UPLOAD HELPER ---
     const uploadMediaToCloudinary = async (file) => {
         const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
         const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
@@ -74,24 +76,21 @@ const CourseManager = () => {
         formData.append('file', file);
         formData.append('upload_preset', uploadPreset);
 
-        // Using /auto/ allows Cloudinary to automatically detect video vs pdf vs image
         const res = await axios.post(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, formData);
         return res.data.secure_url;
     };
 
-    // --- SPRINT 1: Curriculum & Resources Logic ---
     const handleAddOrUpdateLesson = async (e) => {
         e.preventDefault();
         setIsSubmitting(true);
         setError('');
-        setSuccessMsg(''); 
+        setSuccessMsg('');
         setUploadStatus('Initializing upload...');
-        
+
         try {
-            let finalVideoUrl = newLesson.video_url; 
+            let finalVideoUrl = newLesson.video_url;
             let finalPdfUrl = null;
 
-            // 1. Upload Video if selected
             if (videoFile) {
                 setUploadStatus('Uploading Video to Cloudinary (this may take a moment)...');
                 finalVideoUrl = await uploadMediaToCloudinary(videoFile);
@@ -99,7 +98,6 @@ const CourseManager = () => {
                 throw new Error("A video file is required to create a new lesson.");
             }
 
-            // 2. Upload PDF if selected during creation
             if (pdfFile) {
                 setUploadStatus('Uploading PDF Resource...');
                 finalPdfUrl = await uploadMediaToCloudinary(pdfFile);
@@ -110,25 +108,24 @@ const CourseManager = () => {
 
             if (editingLessonId) {
                 await api.patch(`/api/courses/lessons/${editingLessonId}/`, { ...newLesson, video_url: finalVideoUrl });
-                setSuccessMsg("Lesson updated successfully!"); 
+                setSuccessMsg("Lesson updated successfully!");
             } else {
                 const res = await api.post(`/api/courses/lessons/`, { course: courseId, ...newLesson, video_url: finalVideoUrl });
                 savedLessonId = res.data.id;
                 setSuccessMsg("New lesson added successfully!");
             }
 
-            // 3. Link the uploaded PDF to the newly created lesson
             if (finalPdfUrl && pdfTitle) {
                 await api.post(`/api/courses/resources/`, { lesson: savedLessonId, title: pdfTitle, file_url: finalPdfUrl });
             }
-            
+
             handleCancelEdit();
-            await fetchCourseData(); 
-            
-        } catch (err) { 
-            setError(err.message || "Failed to save lesson pipeline."); 
-        } finally { 
-            setIsSubmitting(false); 
+            await fetchCourseData();
+
+        } catch (err) {
+            setError(err.message || "Failed to save lesson pipeline.");
+        } finally {
+            setIsSubmitting(false);
             setUploadStatus('');
         }
     };
@@ -157,7 +154,7 @@ const CourseManager = () => {
         try {
             await api.delete(`/api/courses/lessons/${lessonId}/`);
             if (editingLessonId === lessonId) handleCancelEdit();
-            fetchCourseData(); 
+            fetchCourseData();
         } catch (err) { setError("Failed to delete lesson."); }
     };
 
@@ -165,7 +162,7 @@ const CourseManager = () => {
         if (!newResource.title || (!newResource.file_url && !resourceFile)) {
             return setError("Resource title and file required.");
         }
-        
+
         setIsSubmitting(true);
         setError('');
         setUploadStatus('Uploading Resource...');
@@ -178,9 +175,9 @@ const CourseManager = () => {
             await api.post(`/api/courses/resources/`, { lesson: editingLessonId, title: newResource.title, file_url: finalFileUrl });
             setNewResource({ title: '', file_url: '' });
             setResourceFile(null);
-            fetchCourseData(); 
-        } catch (err) { 
-            setError(err.message || "Failed to attach resource."); 
+            fetchCourseData();
+        } catch (err) {
+            setError(err.message || "Failed to attach resource.");
         } finally {
             setIsSubmitting(false);
             setUploadStatus('');
@@ -190,286 +187,406 @@ const CourseManager = () => {
     const handleDeleteResource = async (resourceId) => {
         try {
             await api.delete(`/api/courses/resources/${resourceId}/`);
-            fetchCourseData(); 
+            fetchCourseData();
         } catch (err) { setError("Failed to delete resource."); }
     };
 
-    // --- SPRINT 2: Assessment Builder Logic ---
     const handleCreateQuiz = async () => {
         try {
             await api.post('/api/courses/quizzes/', {
                 course: courseId, title: 'Final Course Assessment', passing_score: 80
             });
             fetchCourseData();
-        } catch(err) { setError("Failed to initialize assessment."); }
+        } catch (err) { setError("Failed to initialize assessment."); }
     };
 
     const handleSaveQuestion = async (e) => {
         e.preventDefault();
-        if(!questionText || choices.some(c => !c.text)) return setError("Please fill out the question and all 4 choices.");
-        
+        if (!questionText || choices.some(c => !c.text)) return setError("Please fill out the question and all 4 choices.");
+
         setIsSubmitting(true);
         try {
             const qRes = await api.post('/api/courses/questions/', {
                 quiz: course.quiz.id, text: questionText, order: course.quiz.questions ? course.quiz.questions.length + 1 : 1
             });
 
-            await Promise.all(choices.map(c => 
+            await Promise.all(choices.map(c =>
                 api.post('/api/courses/choices/', { question: qRes.data.id, ...c })
             ));
 
             setQuestionText('');
             setChoices([{ text: '', is_correct: true }, { text: '', is_correct: false }, { text: '', is_correct: false }, { text: '', is_correct: false }]);
             fetchCourseData();
-        } catch(err) { setError("Failed to save question."); } finally { setIsSubmitting(false); }
+        } catch (err) { setError("Failed to save question."); } finally { setIsSubmitting(false); }
     };
 
     const handleDeleteQuestion = async (qId) => {
-        if(!window.confirm("Delete this question?")) return;
+        if (!window.confirm("Delete this question?")) return;
         try {
             await api.delete(`/api/courses/questions/${qId}/`);
             fetchCourseData();
-        } catch(err) { setError("Failed to delete question."); }
+        } catch (err) { setError("Failed to delete question."); }
     };
 
-    if (!course) return <Container className={`mt-5 text-center ${isDarkMode ? 'text-light' : 'text-dark'}`}>Loading Course Matrix...</Container>;
+    if (!course) {
+        return (
+            <div className="min-h-screen bg-[#FFFFFF] dark:bg-[#090C12] flex flex-col items-center justify-center">
+                <Loader2 className="w-10 h-10 text-primary animate-spin mb-4" />
+                <p className="text-muted-foreground font-medium">Loading Course Matrix...</p>
+            </div>
+        );
+    }
 
     return (
-        <Container className={`py-5 fade-in-up ${isDarkMode ? 'text-light' : 'text-dark'}`}>
-            <Button variant="outline-secondary" className="mb-4 rounded-pill" onClick={() => navigate('/dashboard')}>
-                &larr; Back to Dashboard
-            </Button>
-            
-            <Row className="g-4">
-                <Col md={4}>
-                    <Card className={`border-0 shadow-sm rounded-4 overflow-hidden mb-3 ${isDarkMode ? 'bg-secondary bg-opacity-25 text-white' : 'bg-white text-dark'}`}>
-                        {course.thumbnail ? (
-                            <Card.Img variant="top" src={course.thumbnail} style={{ height: '200px', objectFit: 'cover' }} />
-                        ) : (
-                            <div className="bg-primary bg-opacity-10 w-100 d-flex align-items-center justify-content-center" style={{ height: '200px' }}><span className="text-primary fw-bold">No Cover</span></div>
-                        )}
-                        <Card.Body className="p-4">
-                            <Badge bg="primary" className="mb-2 rounded-pill">{course.category}</Badge>
-                            <h4 className="fw-bold">{course.title}</h4>
-                            <p className="text-muted small mb-0">{course.description}</p>
-                        </Card.Body>
-                    </Card>
-                </Col>
+        <div className="min-h-screen bg-[#FFFFFF] dark:bg-[#090C12] py-10 px-4 sm:px-6 lg:px-8">
+            <div className="max-w-7xl mx-auto space-y-8">
 
-                <Col md={8}>
-                    {error && <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert>}
-                    {successMsg && <Alert variant="success" onClose={() => setSuccessMsg('')} dismissible>{successMsg}</Alert>}
-                    
-                    <ButtonGroup className="w-100 mb-4 shadow-sm rounded-pill overflow-hidden">
-                        <Button 
-                            variant={activeTab === 'curriculum' ? 'primary' : (isDarkMode ? 'dark' : 'light')} 
-                            onClick={() => setActiveTab('curriculum')}
-                            className={`fw-bold py-2 ${activeTab !== 'curriculum' && (isDarkMode ? 'border-secondary text-light' : 'border-light text-dark')}`}
-                        >
-                            📚 Curriculum Builder
-                        </Button>
-                        <Button 
-                            variant={activeTab === 'assessment' ? 'primary' : (isDarkMode ? 'dark' : 'light')} 
-                            onClick={() => setActiveTab('assessment')}
-                            className={`fw-bold py-2 ${activeTab !== 'assessment' && (isDarkMode ? 'border-secondary text-light' : 'border-light text-dark')}`}
-                        >
-                            🎯 Final Assessment
-                        </Button>
-                    </ButtonGroup>
+                {/* Global Messages */}
+                <AnimatePresence>
+                    {error && (
+                        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="mb-4 p-4 rounded-xl bg-destructive/10 border border-destructive/20 flex items-start gap-3 justify-between">
+                            <div className="flex items-start gap-3">
+                                <AlertCircle className="w-5 h-5 text-destructive mt-0.5 flex-shrink-0" />
+                                <p className="text-sm text-destructive font-medium">{error}</p>
+                            </div>
+                            <button onClick={() => setError('')} className="text-destructive/80 hover:text-destructive"><XCircle className="w-5 h-5" /></button>
+                        </motion.div>
+                    )}
+                    {successMsg && (
+                        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="mb-4 p-4 rounded-xl bg-green-500/10 border border-green-500/20 flex items-start gap-3 justify-between">
+                            <div className="flex items-start gap-3">
+                                <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
+                                <p className="text-sm text-green-500 font-medium">{successMsg}</p>
+                            </div>
+                            <button onClick={() => setSuccessMsg('')} className="text-green-500/80 hover:text-green-500"><XCircle className="w-5 h-5" /></button>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
-                    {activeTab === 'curriculum' ? (
-                        <>
-                            <Card className={`border-0 shadow-sm rounded-4 mb-4 ${isDarkMode ? 'bg-secondary bg-opacity-25 text-white border-secondary' : 'bg-white text-dark border-light'}`}>
-                                <Card.Header className="bg-transparent border-bottom-0 pt-4 px-4 pb-0">
-                                    <h5 className="fw-bold">{editingLessonId ? '✏️ Update Video Module' : '➕ Attach Video Module'}</h5>
-                                </Card.Header>
-                                <Card.Body className="p-4">
-                                    <Form onSubmit={handleAddOrUpdateLesson}>
-                                        <Row className="g-3">
-                                            <Col md={8}>
-                                                <Form.Label className="small fw-semibold">Lesson Title</Form.Label>
-                                                <Form.Control type="text" required className={isDarkMode ? 'bg-dark text-light border-secondary' : 'bg-light text-dark'} value={newLesson.title} onChange={e => setNewLesson({...newLesson, title: e.target.value})} />
-                                            </Col>
-                                            <Col md={4}>
-                                                <Form.Label className="small fw-semibold">Playback Order</Form.Label>
-                                                <Form.Control type="number" required min="1" className={isDarkMode ? 'bg-dark text-light border-secondary' : 'bg-light text-dark'} value={newLesson.order} onChange={e => setNewLesson({...newLesson, order: parseInt(e.target.value)})} />
-                                            </Col>
-                                            
-                                            {/* CLOUDINARY DIRECT UPLOAD FILE INPUT */}
-                                            <Col md={12}>
-                                                <Form.Label className="small fw-semibold">Video Module (MP4 / WebM)</Form.Label>
-                                                <Form.Control 
-                                                    type="file" 
-                                                    accept="video/*" 
-                                                    className={isDarkMode ? 'bg-dark text-light border-secondary' : 'bg-light text-dark'} 
-                                                    onChange={e => setVideoFile(e.target.files[0])} 
-                                                />
-                                                {editingLessonId && newLesson.video_url && (
-                                                    <small className="text-muted d-block mt-1">A video is currently attached. Upload a new file to replace it.</small>
+                <button onClick={() => navigate('/dashboard')} className="w-fit mb-3 flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-blue-500 hover:opacity-90 text-white !rounded-tl-2xl !rounded-br-2xl !rounded-tr-md !rounded-bl-md font-bold text-sm transition-all shadow-sm mb-6">
+                    <ArrowLeft className="w-4 h-4" /> Back to Dashboard
+                </button>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+                    {/* Left Column: Course Meta */}
+                    <div className="lg:col-span-1 space-y-6">
+                        <div className="bg-[#FFFFFF] dark:bg-[#11161F] rounded-3xl border border-gray-200 dark:border-white/5 shadow-sm overflow-hidden">
+                            <div className="relative h-48 bg-black/50">
+                                {course.thumbnail ? (
+                                    <img src={course.thumbnail} className="w-full h-full object-cover" alt="Course Cover" />
+                                ) : (
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground">
+                                        <ImageIcon className="w-10 h-10 mb-2 opacity-50" />
+                                        <span className="text-sm font-bold tracking-widest uppercase opacity-50">No Cover</span>
+                                    </div>
+                                )}
+                                <div className="absolute top-4 left-4">
+                                    <span className="px-3 py-1.5 rounded-full bg-black/80 backdrop-blur-md border border-white/10 text-xs font-bold text-white shadow-xl">
+                                        {course.category}
+                                    </span>
+                                </div>
+                            </div>
+                            <div className="p-6">
+                                <h4 className="text-xl font-extrabold text-foreground mb-2 leading-tight">{course.title}</h4>
+                                <p className="text-sm text-muted-foreground leading-relaxed">{course.description}</p>
+                            </div>
+                        </div>
+
+                        {/* Navigation Tabs */}
+                        <div className="bg-[#FFFFFF] dark:bg-[#11161F] p-2 rounded-2xl border border-gray-200 dark:border-white/5 shadow-sm flex flex-col">
+                            <button
+                                onClick={() => setActiveTab('curriculum')}
+                                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === 'curriculum'
+                                    ? 'bg-gradient-to-r from-indigo-500 via-purple-500 to-blue-500 text-white shadow-md'
+                                    : 'text-muted-foreground hover:bg-gray-50 dark:hover:bg-white/5 hover:text-foreground'
+                                    }`}
+                            >
+                                <BookOpen className="w-4 h-4" /> Curriculum Builder
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('assessment')}
+                                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === 'assessment'
+                                    ? 'bg-gradient-to-r from-indigo-500 via-purple-500 to-blue-500 text-white shadow-md'
+                                    : 'text-muted-foreground hover:bg-gray-50 dark:hover:bg-white/5 hover:text-foreground'
+                                    }`}
+                            >
+                                <Target className="w-4 h-4" /> Final Assessment
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Right Column: Active Tab Content */}
+                    <div className="lg:col-span-2 space-y-8">
+                        {activeTab === 'curriculum' ? (
+                            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} key="curriculum">
+                                {/* Lesson Builder Form */}
+                                <div className="bg-[#FFFFFF] dark:bg-[#11161F] rounded-3xl border border-gray-200 dark:border-white/5 shadow-lg overflow-hidden mb-8">
+                                    <div className="p-6 md:p-8 border-b border-gray-200 dark:border-white/5 bg-[#F6F8FD] dark:bg-[#07090D]">
+                                        <h2 className="text-2xl font-bold text-foreground flex items-center gap-3">
+                                            {editingLessonId ? <Edit className="w-6 h-6 text-yellow-500" /> : <Plus className="w-6 h-6 text-primary" />}
+                                            {editingLessonId ? 'Update Video Module' : 'Attach Video Module'}
+                                        </h2>
+                                    </div>
+
+                                    <div className="p-6 md:p-8">
+                                        <form onSubmit={handleAddOrUpdateLesson} className="space-y-6">
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-sm font-semibold text-foreground mb-2">Lesson Title</label>
+                                                    <input type="text" required className="w-full bg-[#F6F8FD] dark:bg-[#151B26] border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-foreground focus:ring-2 focus:ring-indigo-500 outline-none transition-all" value={newLesson.title} onChange={e => setNewLesson({ ...newLesson, title: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm font-semibold text-foreground mb-2">Playback Order</label>
+                                                    <input type="number" required min="1" className="w-full bg-[#F6F8FD] dark:bg-[#151B26] border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-foreground focus:ring-2 focus:ring-indigo-500 outline-none transition-all" value={newLesson.order} onChange={e => setNewLesson({ ...newLesson, order: parseInt(e.target.value) })} />
+                                                </div>
+                                                <div className="md:col-span-3">
+                                                    <label className="block text-sm font-semibold text-foreground mb-2">Video Module (MP4 / WebM)</label>
+                                                    <div className="flex items-center gap-4 bg-[#F6F8FD] dark:bg-[#151B26] border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2 border-dashed">
+                                                        <PlayCircle className="w-6 h-6 text-muted-foreground" />
+                                                        <input type="file" accept="video/*" onChange={e => setVideoFile(e.target.files[0])} className="w-full text-sm text-foreground file:mr-4 file:py-2.5 file:px-6 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-indigo-500/10 file:text-indigo-500 hover:file:bg-indigo-500/20 cursor-pointer transition-colors" />
+                                                    </div>
+                                                    {editingLessonId && newLesson.video_url && (
+                                                        <p className="text-xs text-muted-foreground mt-2 font-medium">A video is currently attached. Upload a new file to replace it.</p>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {!editingLessonId && (
+                                                <div className="mt-6 pt-6 border-t border-gray-200 dark:border-white/5">
+                                                    <h6 className="text-sm font-bold text-foreground flex items-center gap-2 mb-4">
+                                                        <FileText className="w-4 h-4 text-primary" /> Attach Document Resource (Optional)
+                                                    </h6>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                        <input type="text" placeholder="Resource Title (e.g. Cheat Sheet)" className="w-full bg-[#F6F8FD] dark:bg-[#151B26] border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-foreground text-sm focus:ring-2 focus:ring-indigo-500 outline-none" value={pdfTitle} onChange={e => setPdfTitle(e.target.value)} />
+                                                        <input type="file" accept=".pdf,.zip,.doc,.docx" className="w-full text-sm text-foreground file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-indigo-500/10 file:text-indigo-500 hover:file:bg-indigo-500/20 cursor-pointer" onChange={e => setPdfFile(e.target.files[0])} />
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div className="flex flex-wrap gap-3 pt-6 border-t border-gray-200 dark:border-white/5">
+                                                <button type="submit" disabled={isSubmitting} className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-500 via-purple-500 to-blue-500 hover:opacity-90 text-white !rounded-tl-2xl !rounded-br-2xl !rounded-tr-md !rounded-bl-md font-bold transition-all shadow-sm disabled:opacity-50">
+                                                    {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
+                                                    {isSubmitting ? (uploadStatus || 'Processing...') : (editingLessonId ? 'Update Lesson' : 'Save Lesson Pipeline')}
+                                                </button>
+                                                {editingLessonId && (
+                                                    <button type="button" onClick={handleCancelEdit} className="px-6 py-3 bg-[#F6F8FD] dark:bg-[#151B26] hover:bg-gray-100 dark:hover:bg-white/5 text-foreground border border-gray-200 dark:border-white/10 rounded-xl font-bold transition-all">
+                                                        Cancel Edit
+                                                    </button>
                                                 )}
-                                            </Col>
-                                        </Row>
+                                            </div>
+                                        </form>
 
-                                        {/* SIMULTANEOUS PDF UPLOAD UI */}
-                                        {!editingLessonId && (
-                                            <div className={`mt-3 pt-3 border-top ${isDarkMode ? 'border-secondary' : 'border-light'}`}>
-                                                <h6 className="fw-bold fs-6 mb-2">📁 Attach Document Resource (Optional)</h6>
-                                                <Row className="g-3">
-                                                    <Col md={6}>
-                                                        <Form.Control type="text" size="sm" placeholder="Resource Title (e.g. Cheat Sheet)" className={isDarkMode ? 'bg-dark text-light border-secondary' : 'bg-white'} value={pdfTitle} onChange={e => setPdfTitle(e.target.value)} />
-                                                    </Col>
-                                                    <Col md={6}>
-                                                        <Form.Control type="file" size="sm" accept=".pdf,.zip,.doc,.docx" className={isDarkMode ? 'bg-dark text-light border-secondary' : 'bg-white'} onChange={e => setPdfFile(e.target.files[0])} />
-                                                    </Col>
-                                                </Row>
+                                        {editingLessonId && (
+                                            <div className="mt-8 pt-8 border-t border-gray-200 dark:border-white/5">
+                                                <h6 className="text-lg font-bold text-foreground mb-4">📁 Existing Resources</h6>
+
+                                                <div className="space-y-3 mb-6">
+                                                    {lessons.find(l => l.id === editingLessonId)?.resources?.map(r => (
+                                                        <div key={r.id} className="flex items-center justify-between p-4 rounded-xl bg-[#F6F8FD] dark:bg-[#151B26] border border-gray-200 dark:border-white/10 shadow-sm">
+                                                            <div className="flex items-center gap-3">
+                                                                <FileText className="w-5 h-5 text-primary" />
+                                                                <span className="text-sm font-semibold text-foreground">{r.title}</span>
+                                                            </div>
+                                                            <button onClick={() => handleDeleteResource(r.id)} className="w-8 h-8 rounded-full bg-destructive/10 text-destructive flex items-center justify-center hover:bg-destructive hover:text-white transition-colors">
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                    {lessons.find(l => l.id === editingLessonId)?.resources?.length === 0 && (
+                                                        <p className="text-sm text-muted-foreground italic">No resources attached to this lesson.</p>
+                                                    )}
+                                                </div>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                                                    <div className="md:col-span-4">
+                                                        <input type="text" placeholder="Title (e.g. Starter.zip)" className="w-full bg-[#F6F8FD] dark:bg-[#151B26] border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-foreground text-sm focus:ring-2 focus:ring-indigo-500 outline-none" value={newResource.title} onChange={e => setNewResource({ ...newResource, title: e.target.value })} />
+                                                    </div>
+                                                    <div className="md:col-span-5">
+                                                        <input type="file" accept=".pdf,.zip,.doc,.docx" className="w-full text-sm text-foreground file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-indigo-500/10 file:text-indigo-500 hover:file:bg-indigo-500/20 cursor-pointer bg-[#F6F8FD] dark:bg-[#151B26] border border-gray-200 dark:border-white/10 rounded-xl px-2" onChange={e => setResourceFile(e.target.files[0])} />
+                                                    </div>
+                                                    <div className="md:col-span-3">
+                                                        <button onClick={handleAddResource} disabled={isSubmitting} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[#F6F8FD] dark:bg-[#151B26] hover:bg-gray-100 dark:hover:bg-white/5 text-foreground border border-gray-200 dark:border-white/10 rounded-xl font-bold text-sm transition-all shadow-sm disabled:opacity-50">
+                                                            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Attach File'}
+                                                        </button>
+                                                    </div>
+                                                </div>
                                             </div>
                                         )}
+                                    </div>
+                                </div>
 
-                                        <div className="d-flex gap-2 mt-4">
-                                            <Button variant={editingLessonId ? "warning" : "success"} type="submit" className="rounded-pill px-4 fw-bold shadow-sm d-flex align-items-center gap-2" disabled={isSubmitting}>
-                                                {isSubmitting && <Spinner size="sm" />}
-                                                {isSubmitting ? (uploadStatus || 'Processing...') : (editingLessonId ? 'Update Lesson Basics' : 'Save Lesson Pipeline')}
-                                            </Button>
-                                            {editingLessonId && <Button variant="outline-secondary" className="rounded-pill px-4 fw-bold" onClick={handleCancelEdit}>Close Editor</Button>}
-                                        </div>
-                                    </Form>
-
-                                    {/* Downloadable Resources Form (For existing lessons) */}
-                                    {editingLessonId && (
-                                        <div className={`mt-4 pt-4 border-top ${isDarkMode ? 'border-secondary' : 'border-light'}`}>
-                                            <h6 className="fw-bold mb-3">📁 Attach Resources</h6>
-                                            {lessons.find(l => l.id === editingLessonId)?.resources?.map(r => (
-                                                <div key={r.id} className={`d-flex justify-content-between align-items-center mb-2 p-2 rounded ${isDarkMode ? 'bg-dark border border-secondary' : 'bg-light border border-light'}`}>
-                                                    <span className="small fw-semibold">📄 {r.title}</span>
-                                                    <Button variant="outline-danger" size="sm" className="rounded-circle px-2" onClick={() => handleDeleteResource(r.id)}>🗑️</Button>
-                                                </div>
-                                            ))}
-                                            <Row className="g-2 mt-3 align-items-end">
-                                                <Col md={4}>
-                                                    <Form.Control type="text" size="sm" className={isDarkMode ? 'bg-dark text-light border-secondary' : 'bg-white'} value={newResource.title} onChange={e => setNewResource({...newResource, title: e.target.value})} placeholder="Title (e.g. Starter.zip)"/>
-                                                </Col>
-                                                <Col md={5}>
-                                                    <Form.Control type="file" size="sm" accept=".pdf,.zip,.doc,.docx" className={isDarkMode ? 'bg-dark text-light border-secondary' : 'bg-white'} onChange={e => setResourceFile(e.target.files[0])} />
-                                                </Col>
-                                                <Col md={3}>
-                                                    <Button variant="primary" size="sm" className="w-100 fw-bold d-flex align-items-center justify-content-center gap-2" onClick={handleAddResource} disabled={isSubmitting}>
-                                                        {isSubmitting ? <Spinner size="sm" /> : 'Attach File'}
-                                                    </Button>
-                                                </Col>
-                                            </Row>
-                                        </div>
-                                    )}
-                                </Card.Body>
-                            </Card>
-
-                            <h5 className="fw-bold mb-3 mt-5">Current Curriculum Track</h5>
-                            {lessons.length === 0 ? (
-                                <div className={`text-center p-5 rounded-4 border ${isDarkMode ? 'text-muted border-secondary bg-dark' : 'text-secondary border-light bg-white shadow-sm'}`}>This course shell is empty. Add your first video above.</div>
-                            ) : (
-                                <ListGroup className="shadow-sm rounded-4">
-                                    {lessons.map((lesson) => (
-                                        <ListGroup.Item key={lesson.id} className={`d-flex justify-content-between align-items-center p-3 border ${editingLessonId === lesson.id ? 'border-warning' : (isDarkMode ? 'border-secondary' : 'border-light')} ${isDarkMode ? 'bg-dark text-light' : 'bg-white text-dark'}`}>
-                                            <div className="d-flex align-items-center flex-grow-1" style={{ cursor: 'pointer' }} onClick={() => handleEditClick(lesson)}>
-                                                <div className="bg-primary text-white border-0 rounded text-center me-3 shadow-sm" style={{ width: '40px', height: '40px', lineHeight: '40px', fontWeight: 'bold' }}>{lesson.order}</div>
-                                                <div>
-                                                    <h6 className="mb-0 fw-bold">{lesson.title} {lesson.resources?.length > 0 && <Badge bg="info" className="ms-2 text-dark">📁 {lesson.resources.length}</Badge>}</h6>
-                                                    <small className="text-muted" style={{ fontSize: '0.75rem' }}>{lesson.video_url.substring(0, 50)}...</small>
-                                                </div>
-                                            </div>
-                                            <Button variant="outline-danger" size="sm" className="rounded-circle px-2 ms-3" onClick={(e) => { e.stopPropagation(); handleDeleteLesson(lesson.id); }}>🗑️</Button>
-                                        </ListGroup.Item>
-                                    ))}
-                                </ListGroup>
-                            )}
-                        </>
-                    ) : (
-                        // SPRINT 2: THE ASSESSMENT BUILDER UI
-                        <>
-                            {!course.quiz ? (
-                                <Card className={`border-0 shadow-sm rounded-4 text-center p-5 ${isDarkMode ? 'bg-secondary bg-opacity-25 text-white' : 'bg-white text-dark'}`}>
-                                    <h4 className="fw-bold mb-3">No Final Assessment Active</h4>
-                                    <p className="text-muted">Test your students' knowledge before allowing them to claim a certificate.</p>
-                                    <Button variant="primary" className="rounded-pill fw-bold px-4 mx-auto mt-2" style={{maxWidth: '250px'}} onClick={handleCreateQuiz}>
-                                        Enable Assessment
-                                    </Button>
-                                </Card>
-                            ) : (
-                                <>
-                                    <Card className={`border-0 shadow-sm rounded-4 mb-4 ${isDarkMode ? 'bg-secondary bg-opacity-25 text-white border-secondary' : 'bg-white text-dark border-light'}`}>
-                                        <Card.Header className="bg-transparent border-bottom-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center">
-                                            <h5 className="fw-bold mb-0">➕ Add a Question</h5>
-                                            <Badge bg="info" className="text-dark">Passing Score: {course.quiz.passing_score}%</Badge>
-                                        </Card.Header>
-                                        <Card.Body className="p-4">
-                                            <Form onSubmit={handleSaveQuestion}>
-                                                <Form.Group className="mb-4">
-                                                    <Form.Label className="small fw-semibold">Question Prompt</Form.Label>
-                                                    <Form.Control type="text" required className={isDarkMode ? 'bg-dark text-light border-secondary' : 'bg-light text-dark border-light'} value={questionText} onChange={e => setQuestionText(e.target.value)} placeholder="e.g., What is the primary purpose of the React Virtual DOM?" />
-                                                </Form.Group>
-                                                
-                                                <Form.Label className="small fw-semibold mb-2">Multiple Choice Options (Select the correct answer via the radio button)</Form.Label>
-                                                {choices.map((choice, index) => (
-                                                    <InputGroup className="mb-2 shadow-sm" key={index}>
-                                                        <InputGroup.Radio 
-                                                            name="correctChoice" 
-                                                            checked={choice.is_correct}
-                                                            onChange={() => {
-                                                                const newChoices = choices.map((c, i) => ({ ...c, is_correct: i === index }));
-                                                                setChoices(newChoices);
-                                                            }}
-                                                        />
-                                                        <Form.Control 
-                                                            type="text" 
-                                                            required
-                                                            placeholder={`Option ${index + 1}`}
-                                                            className={isDarkMode ? 'bg-dark text-light border-secondary' : 'bg-light text-dark border-light'}
-                                                            value={choice.text}
-                                                            onChange={e => {
-                                                                const newChoices = [...choices];
-                                                                newChoices[index].text = e.target.value;
-                                                                setChoices(newChoices);
-                                                            }}
-                                                        />
-                                                    </InputGroup>
-                                                ))}
-                                                <Button type="submit" variant="success" className="rounded-pill px-4 mt-3 fw-bold shadow-sm" disabled={isSubmitting}>
-                                                    {isSubmitting ? 'Saving to Database...' : 'Save Question to Bank'}
-                                                </Button>
-                                            </Form>
-                                        </Card.Body>
-                                    </Card>
-
-                                    <h5 className="fw-bold mb-3 mt-5">Question Bank ({course.quiz.questions?.length || 0})</h5>
-                                    {(!course.quiz.questions || course.quiz.questions.length === 0) ? (
-                                        <div className={`text-center p-4 rounded-4 border ${isDarkMode ? 'text-muted border-secondary bg-dark' : 'text-secondary border-light bg-white shadow-sm'}`}>
-                                            No questions have been added to the test bank yet.
-                                        </div>
-                                    ) : (
-                                        <ListGroup className="shadow-sm rounded-4">
-                                            {course.quiz.questions.map((q, idx) => (
-                                                <ListGroup.Item key={q.id} className={`p-4 border ${isDarkMode ? 'bg-dark text-light border-secondary' : 'bg-white text-dark border-light'}`}>
-                                                    <div className="d-flex justify-content-between align-items-start mb-3">
-                                                        <h6 className="fw-bold mb-0 text-primary">{idx + 1}. {q.text}</h6>
-                                                        <Button variant="outline-danger" size="sm" className="rounded-circle px-2" onClick={() => handleDeleteQuestion(q.id)}>🗑️</Button>
+                                {/* Curriculum Track List */}
+                                <h3 className="text-xl font-bold text-foreground mb-4">Current Curriculum Track</h3>
+                                {lessons.length === 0 ? (
+                                    <div className="text-center py-12 border border-dashed border-gray-200 dark:border-white/10 rounded-3xl bg-[#FFFFFF] dark:bg-[#11161F] shadow-sm">
+                                        <BookOpen className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                                        <p className="text-muted-foreground font-medium">This course shell is empty. Add your first video module above.</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {lessons.map((lesson) => (
+                                            <div
+                                                key={lesson.id}
+                                                onClick={() => handleEditClick(lesson)}
+                                                className={`flex items-center justify-between p-4 md:p-5 rounded-2xl border transition-all cursor-pointer group ${editingLessonId === lesson.id
+                                                    ? 'bg-indigo-50/50 dark:bg-indigo-500/10 border-indigo-500 shadow-sm'
+                                                    : 'bg-[#FFFFFF] dark:bg-[#11161F] border-gray-200 dark:border-white/5 hover:border-indigo-500/50 shadow-sm hover:shadow-md'
+                                                    }`}
+                                            >
+                                                <div className="flex items-center gap-4 flex-1 min-w-0">
+                                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black text-lg shadow-sm ${editingLessonId === lesson.id ? 'bg-gradient-to-r from-indigo-500 via-purple-500 to-blue-500 text-white' : 'bg-[#F6F8FD] dark:bg-[#151B26] text-foreground border border-gray-200 dark:border-white/10'
+                                                        }`}>
+                                                        {lesson.order}
                                                     </div>
-                                                    <ul className="mb-0 small" style={{ listStyleType: 'none', paddingLeft: 0 }}>
-                                                        {q.choices.map((c) => (
-                                                            <li key={c.id} className={`mb-1 p-2 rounded ${c.is_correct ? (isDarkMode ? 'bg-success bg-opacity-25 text-success fw-bold' : 'bg-success bg-opacity-10 text-success fw-bold') : 'text-muted'}`}>
-                                                                {c.is_correct ? '✅ ' : '❌ '} {c.text}
-                                                            </li>
+                                                    <div className="flex-1 min-w-0">
+                                                        <h6 className="font-bold text-foreground text-base truncate flex items-center gap-2">
+                                                            {lesson.title}
+                                                            {lesson.resources?.length > 0 && (
+                                                                <span className="bg-blue-500/10 text-blue-500 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                                    <FileText className="w-3 h-3" /> {lesson.resources.length}
+                                                                </span>
+                                                            )}
+                                                        </h6>
+                                                        <p className="text-xs text-muted-foreground truncate mt-0.5 font-medium">{lesson.video_url}</p>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleDeleteLesson(lesson.id); }}
+                                                    className="w-10 h-10 rounded-full flex items-center justify-center text-muted-foreground hover:bg-destructive hover:text-white transition-colors ml-4 border border-transparent hover:border-destructive/50"
+                                                >
+                                                    <Trash2 className="w-5 h-5" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </motion.div>
+                        ) : (
+                            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} key="assessment">
+                                {!course.quiz ? (
+                                    <div className="p-12 text-center rounded-3xl border border-gray-200 dark:border-white/5 bg-[#FFFFFF] dark:bg-[#11161F] shadow-lg">
+                                        <div className="w-20 h-20 bg-indigo-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                                            <Target className="w-10 h-10 text-indigo-500" />
+                                        </div>
+                                        <h3 className="text-2xl font-extrabold text-foreground mb-3">No Final Assessment Active</h3>
+                                        <p className="text-muted-foreground mb-8 max-w-sm mx-auto">Evaluate your students' knowledge with a final multiple-choice exam before allowing them to claim a certificate.</p>
+                                        <button
+                                            onClick={handleCreateQuiz}
+                                            className="px-8 py-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-blue-500 text-white hover:opacity-90 !rounded-tl-2xl !rounded-br-2xl !rounded-tr-md !rounded-bl-md font-bold uppercase tracking-wide transition-all shadow-lg mx-auto flex items-center gap-2"
+                                        >
+                                            <Target className="w-5 h-5" /> Enable Assessment Now
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="bg-[#FFFFFF] dark:bg-[#11161F] rounded-3xl border border-gray-200 dark:border-white/5 shadow-lg overflow-hidden mb-8">
+                                            <div className="p-6 md:p-8 border-b border-gray-200 dark:border-white/5 bg-[#F6F8FD] dark:bg-[#07090D] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                                <h2 className="text-2xl font-bold text-foreground flex items-center gap-3">
+                                                    <Plus className="w-6 h-6 text-indigo-500" /> Add a Question
+                                                </h2>
+                                                <span className="px-3 py-1.5 bg-gray-100 dark:bg-white/5 text-foreground text-xs font-bold rounded-full border border-gray-200 dark:border-white/10 uppercase tracking-widest shadow-sm">
+                                                    Passing Score: {course.quiz.passing_score}%
+                                                </span>
+                                            </div>
+                                            <div className="p-6 md:p-8">
+                                                <form onSubmit={handleSaveQuestion}>
+                                                    <div className="mb-6">
+                                                        <label className="block text-sm font-semibold text-foreground mb-2">Question Prompt</label>
+                                                        <input
+                                                            type="text" required
+                                                            className="w-full bg-[#F6F8FD] dark:bg-[#151B26] border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-foreground focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                                                            value={questionText}
+                                                            onChange={e => setQuestionText(e.target.value)}
+                                                            placeholder="e.g., What is the primary purpose of the React Virtual DOM?"
+                                                        />
+                                                    </div>
+
+                                                    <label className="block text-sm font-semibold text-foreground mb-3">Multiple Choice Options (Select the correct answer via the radio button)</label>
+                                                    <div className="space-y-3 mb-8">
+                                                        {choices.map((choice, index) => (
+                                                            <div key={index} className={`flex items-center gap-3 p-2 rounded-xl border transition-all ${choice.is_correct ? 'bg-indigo-50/50 dark:bg-indigo-500/10 border-indigo-500 shadow-sm' : 'bg-[#F6F8FD] dark:bg-[#151B26] border-gray-200 dark:border-white/10'
+                                                                }`}>
+                                                                <div className="pl-3 flex items-center h-full">
+                                                                    <input
+                                                                        type="radio"
+                                                                        name="correctChoice"
+                                                                        checked={choice.is_correct}
+                                                                        onChange={() => {
+                                                                            const newChoices = choices.map((c, i) => ({ ...c, is_correct: i === index }));
+                                                                            setChoices(newChoices);
+                                                                        }}
+                                                                        className="w-5 h-5 accent-indigo-500 cursor-pointer"
+                                                                    />
+                                                                </div>
+                                                                <input
+                                                                    type="text" required
+                                                                    placeholder={`Option ${index + 1}`}
+                                                                    className="w-full bg-transparent border-none text-foreground focus:ring-0 outline-none py-2 px-1 text-sm font-medium"
+                                                                    value={choice.text}
+                                                                    onChange={e => {
+                                                                        const newChoices = [...choices];
+                                                                        newChoices[index].text = e.target.value;
+                                                                        setChoices(newChoices);
+                                                                    }}
+                                                                />
+                                                            </div>
                                                         ))}
-                                                    </ul>
-                                                </ListGroup.Item>
-                                            ))}
-                                        </ListGroup>
-                                    )}
-                                </>
-                            )}
-                        </>
-                    )}
-                </Col>
-            </Row>
-        </Container>
+                                                    </div>
+
+                                                    <button type="submit" disabled={isSubmitting} className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-blue-500 hover:opacity-90 text-white !rounded-tl-2xl !rounded-br-2xl !rounded-tr-md !rounded-bl-md font-bold transition-all shadow-md disabled:opacity-50">
+                                                        {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
+                                                        {isSubmitting ? 'Saving to Database...' : 'Save Question to Bank'}
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </div>
+
+                                        <h3 className="text-xl font-bold text-foreground mb-4">Question Bank ({course.quiz.questions?.length || 0})</h3>
+                                        {(!course.quiz.questions || course.quiz.questions.length === 0) ? (
+                                            <div className="text-center py-12 border border-dashed border-gray-200 dark:border-white/10 rounded-3xl bg-[#FFFFFF] dark:bg-[#11161F] shadow-sm">
+                                                <Target className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                                                <p className="text-muted-foreground font-medium">No questions have been added to the test bank yet.</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-4">
+                                                {course.quiz.questions.map((q, idx) => (
+                                                    <div key={q.id} className="p-6 rounded-2xl border border-gray-200 dark:border-white/5 bg-[#FFFFFF] dark:bg-[#11161F] shadow-sm relative group">
+                                                        <div className="pr-12 mb-4">
+                                                            <h4 className="text-lg font-extrabold text-foreground leading-snug">
+                                                                <span className="text-indigo-500 mr-2">{idx + 1}.</span> {q.text}
+                                                            </h4>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => handleDeleteQuestion(q.id)}
+                                                            className="absolute top-6 right-6 w-10 h-10 rounded-full flex items-center justify-center text-muted-foreground hover:bg-destructive hover:text-white transition-colors border border-transparent hover:border-destructive/50"
+                                                        >
+                                                            <Trash2 className="w-5 h-5" />
+                                                        </button>
+
+                                                        <div className="space-y-2 pl-6 sm:pl-8 border-l-2 border-border/50">
+                                                            {q.choices.map((c) => (
+                                                                <div key={c.id} className={`flex items-start gap-2 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${c.is_correct ? 'bg-green-500/10 text-green-600 dark:text-green-500 font-bold' : 'text-muted-foreground'
+                                                                    }`}>
+                                                                    <div className="mt-0.5 flex-shrink-0">
+                                                                        {c.is_correct ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4 opacity-40" />}
+                                                                    </div>
+                                                                    <span>{c.text}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </motion.div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
     );
 };
 

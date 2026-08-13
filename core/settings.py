@@ -127,25 +127,12 @@ STRIPE_TEST_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
 
 
 # --- ENTERPRISE EMAIL CONFIGURATION ---
-# Render's free tier strictly blocks outbound SMTP (Port 587). 
-# We dynamically use standard Gmail SMTP locally, but switch to a free HTTP API in production.
-
-if os.getenv('RENDER'): 
-    # Production: Route through Brevo HTTP API
-    EMAIL_BACKEND = "anymail.backends.sendinblue.EmailBackend" 
-    ANYMAIL = {
-        "SENDINBLUE_API_KEY": os.getenv('BREVO_API_KEY'), 
-    }
-    DEFAULT_FROM_EMAIL = os.getenv('EMAIL_HOST_USER')
-else:
-    # Local Development: Standard Gmail SMTP
-    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    EMAIL_HOST = 'smtp.gmail.com'
-    EMAIL_PORT = 587
-    EMAIL_USE_TLS = True
-    EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
-    EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
-    DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+# Route through Brevo HTTP API for both local development and production
+EMAIL_BACKEND = "anymail.backends.sendinblue.EmailBackend" 
+ANYMAIL = {
+    "SENDINBLUE_API_KEY": os.getenv('BREVO_API_KEY'), 
+}
+DEFAULT_FROM_EMAIL = os.getenv('EMAIL_HOST_USER')
 
 
 # --- FRONTEND ROUTING ---

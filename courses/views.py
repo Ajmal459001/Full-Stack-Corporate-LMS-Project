@@ -11,7 +11,10 @@ from django.contrib.auth.hashers import make_password
 from django.core.mail import send_mail
 
 from .models import Course, Enrollment, Certificate, Lesson, UserProfile, Resource, Review, Quiz, Question, Choice, QuizAttempt
-from .serializers import CourseSerializer, EnrollmentSerializer, LessonSerializer, ResourceSerializer, ReviewSerializer, QuizSerializer, QuestionSerializer, ChoiceSerializer, QuizAttemptSerializer
+from .serializers import (
+    CourseSerializer, CourseListSerializer, LessonSerializer, EnrollmentSerializer, ResourceSerializer, ReviewSerializer,
+    QuizSerializer, QuestionSerializer, ChoiceSerializer, QuizAttemptSerializer
+)
 from .permissions import IsInstructorOrReadOnly
 
 import stripe
@@ -24,7 +27,12 @@ User = get_user_model()
 stripe.api_key = settings.STRIPE_TEST_SECRET_KEY
 
 class CourseViewSet(viewsets.ModelViewSet):
-    serializer_class = CourseSerializer
+    permission_classes = [IsAuthenticated, IsInstructorOrReadOnly]
+
+    def get_serializer_class(self):
+        if self.action in ['list', 'my_workspace']:
+            return CourseListSerializer
+        return CourseSerializer
     permission_classes = [IsAuthenticated, IsInstructorOrReadOnly]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['title', 'description']
@@ -32,7 +40,7 @@ class CourseViewSet(viewsets.ModelViewSet):
     ordering = ['-id'] 
 
     def get_queryset(self):
-        queryset = Course.objects.all()
+        queryset = Course.objects.select_related('instructor').all()
         category_param = self.request.query_params.get('category')
         difficulty_param = self.request.query_params.get('difficulty')
 
@@ -53,12 +61,12 @@ class CourseViewSet(viewsets.ModelViewSet):
             role = profile.role.upper() if profile else 'EMPLOYEE'
 
         if role == 'INSTRUCTOR' or role == 'ADMIN':
-            queryset = Course.objects.filter(instructor=request.user).order_by('-id')
+            queryset = Course.objects.select_related('instructor').filter(instructor=request.user).order_by('-id')
         else:
             enrolled_course_ids = Enrollment.objects.filter(
                 user=request.user, expires_at__gt=timezone.now() 
             ).values_list('course_id', flat=True)
-            queryset = Course.objects.filter(id__in=enrolled_course_ids).order_by('-id')
+            queryset = Course.objects.select_related('instructor').filter(id__in=enrolled_course_ids).order_by('-id')
 
         search_param = request.query_params.get('search')
         category_param = request.query_params.get('category')
@@ -127,8 +135,18 @@ class SubmitQuizAttemptView(APIView):
     def post(self, request, quiz_id):
         try:
             quiz = Quiz.objects.get(id=quiz_id)
-            has_enrollment = Enrollment.objects.filter(user=request.user, course=quiz.course).exists()
-            if not has_enrollment and not request.user.is_superuser: return Response({"error": "You must be enrolled to take this assessment."}, status=status.HTTP_403_FORBIDDEN)
+            enrollment = Enrollment.objects.filter(user=request.user, course=quiz.course).first()
+            
+            if not enrollment and not request.user.is_superuser:
+                return Response({"error": "You must be enrolled to take this assessment."}, status=status.HTTP_403_FORBIDDEN)
+            
+            if not request.user.is_superuser and enrollment:
+                total_lessons = quiz.course.lessons.count()
+                completed_count = enrollment.completed_lessons.count()
+                percentage = int((completed_count / total_lessons) * 100) if total_lessons > 0 else 0
+                
+                if percentage < 100:
+                    return Response({"error": "You must complete all lessons before taking the assessment."}, status=status.HTTP_403_FORBIDDEN)
             
             answers = request.data.get('answers', {})
             total_questions = quiz.questions.count()
@@ -237,6 +255,13 @@ class CourseCompletionStatsView(APIView):
             best_score = 0
             if hasattr(course, 'quiz'):
                 attempts = QuizAttempt.objects.filter(quiz=course.quiz, user=request.user)
+                
+                if enrollment:
+                    attempts = attempts.filter(attempted_at__gte=enrollment.enrolled_at)
+                
+                if percentage < 100:
+                    attempts = attempts.none()
+                    
                 if attempts.exists():
                     best_score = max(attempts.values_list('score', flat=True))
                     quiz_passed = attempts.filter(passed=True).exists()
@@ -294,10 +319,14 @@ class InstructorAnalyticsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        courses = Course.objects.filter(instructor=request.user)
+        from django.db.models import Count
+        courses = Course.objects.filter(instructor=request.user).annotate(
+            course_total_students=Count('enrolled_students', distinct=True),
+            course_certs=Count('issued_certificates', distinct=True)
+        ).prefetch_related('reviews__user')
         
-        total_unique_students = Enrollment.objects.filter(course__in=courses).count()
-        total_certificates = Certificate.objects.filter(course__in=courses).count()
+        total_unique_students = sum(c.course_total_students for c in courses)
+        total_certificates = sum(c.course_certs for c in courses)
         
         overall_completion_rate = int((total_certificates / total_unique_students) * 100) if total_unique_students > 0 else 0
 
@@ -305,17 +334,15 @@ class InstructorAnalyticsView(APIView):
         total_revenue = 0.0
 
         for course in courses:
-            course_total_students = Enrollment.objects.filter(course=course).count()
-            course_certs = Certificate.objects.filter(course=course).count()
-            rate = int((course_certs / course_total_students) * 100) if course_total_students > 0 else 0
+            rate = int((course.course_certs / course.course_total_students) * 100) if course.course_total_students > 0 else 0
             
-            revenue = float(course_total_students * course.price)
+            revenue = float(course.course_total_students * course.price)
             total_revenue += revenue
             
             course_breakdown.append({
                 "id": course.id,
                 "title": course.title,
-                "total_students": course_total_students,
+                "total_students": course.course_total_students,
                 "completion_rate": rate,
                 "revenue": revenue,
                 "category": course.category,
@@ -323,7 +350,7 @@ class InstructorAnalyticsView(APIView):
             })
 
         return Response({
-            "total_courses": courses.count(),
+            "total_courses": len(courses),
             "total_students": total_unique_students,
             "overall_completion_rate": overall_completion_rate,
             "total_revenue": total_revenue,

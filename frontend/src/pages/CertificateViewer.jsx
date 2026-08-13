@@ -1,14 +1,16 @@
-// frontend/src/pages/CertificateViewer.jsx
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Container, Button, Alert, Spinner } from 'react-bootstrap';
-import api from '../api'; // FIXED: Imported central API instance
-import html2canvas from 'html2canvas';
+import api from '../api'; 
+import html2canvas from 'html2canvas-pro';
 import jsPDF from 'jspdf';
+import { useTheme } from '../context/ThemeContext';
+import { Loader2, ArrowLeft, Download, AlertCircle } from 'lucide-react';
+import { motion } from 'motion/react';
 
 const CertificateViewer = () => {
     const { courseId } = useParams();
     const navigate = useNavigate();
+    const { isDarkMode } = useTheme();
     
     const [certData, setCertData] = useState(null);
     const [error, setError] = useState('');
@@ -19,7 +21,6 @@ const CertificateViewer = () => {
     useEffect(() => {
         const fetchCertificate = async () => {
             try {
-                // FIXED: Stripped localhost
                 const res = await api.get(`/api/courses/certificate/${courseId}/`);
                 setCertData(res.data);
             } catch (err) {
@@ -43,16 +44,24 @@ const CertificateViewer = () => {
             const canvas = await html2canvas(certificateRef.current, {
                 scale: 3, 
                 useCORS: true,
-                backgroundColor: '#F9F8F6',
+                backgroundColor: '#000814',
                 logging: false
             });
 
             const imgData = canvas.toDataURL('image/jpeg', 1.0);
             const pdf = new jsPDF('landscape', 'mm', 'a4');
             const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeightTotal = pdf.internal.pageSize.getHeight();
             const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+            
+            // Fill background to prevent white borders
+            pdf.setFillColor(0, 8, 20); // #000814
+            pdf.rect(0, 0, pdfWidth, pdfHeightTotal, 'F');
 
-            pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+            // Center image vertically if there is any tiny gap
+            const yOffset = (pdfHeightTotal - pdfHeight) / 2;
+            pdf.addImage(imgData, 'JPEG', 0, yOffset, pdfWidth, pdfHeight);
+            
             pdf.save(`${certData.student_name.replace(' ', '_')}_Certificate.pdf`);
             
         } catch (err) {
@@ -71,244 +80,199 @@ const CertificateViewer = () => {
     };
 
     if (error) return (
-        <Container className="mt-5 text-center fade-in-up">
-            <Alert variant="danger" className="d-inline-block px-5">{error}</Alert>
-            <br />
-            <Button variant="outline-dark" className="mt-3 rounded-pill" onClick={() => navigate(-1)}>
-                &larr; Go Back
-            </Button>
-        </Container>
+        <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
+            <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mb-6">
+                <AlertCircle className="w-8 h-8 text-destructive" />
+            </div>
+            <h2 className="text-2xl font-bold text-foreground mb-3">Access Denied</h2>
+            <p className="text-muted-foreground mb-8 max-w-md">{error}</p>
+            <button 
+                onClick={() => navigate(-1)}
+                className="flex items-center gap-2 px-6 py-3 bg-secondary text-foreground hover:bg-secondary/80 rounded-xl font-bold transition-colors"
+            >
+                <ArrowLeft className="w-4 h-4" /> Go Back
+            </button>
+        </div>
     );
     
-    if (!certData) return <Container className="mt-5 text-center"><Spinner animation="border" /></Container>;
+    if (!certData) return (
+        <div className="min-h-screen bg-background flex flex-col items-center justify-center">
+            <Loader2 className="w-10 h-10 text-primary animate-spin mb-4" />
+            <p className="text-muted-foreground font-medium">Locating credential record...</p>
+        </div>
+    );
 
     return (
-        <div className="min-vh-100 bg-dark py-5 fade-in-up">
+        <div className="min-h-screen bg-black relative overflow-hidden py-12 flex flex-col">
             <style>
                 {`
-                    @import url('https://fonts.googleapis.com/css2?family=Alex+Brush&family=Montserrat:ital,wght@0,300;0,400;0,600;1,300&display=swap');
+                    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+                    
+                    .font-space { font-family: 'Space Grotesk', sans-serif; }
+                    .font-inter { font-family: 'Inter', sans-serif; }
+
+                    /* Brutalist Grid Background */
+                    .bg-brutalist-grid {
+                      background-color: #000814;
+                      background-image: 
+                        linear-gradient(rgba(255, 255, 255, 0.15) 1px, rgba(0, 0, 0, 0) 1px),
+                        linear-gradient(90deg, rgba(255, 255, 255, 0.15) 1px, rgba(0, 0, 0, 0) 1px);
+                      background-size: 150px 150px;
+                      background-position: center center;
+                    }
+                    
+                    /* Brutalist Glass Panels */
+                    .brutalist-glass {
+                      background: rgba(255, 255, 255, 0.02);
+                      box-shadow: 20px 20px 60px rgba(0, 0, 0, 0.8);
+                      border: 1px solid rgba(255, 255, 255, 0.05);
+                    }
+                    
+                    .brutalist-glass-intense {
+                      background: rgba(255, 255, 255, 0.1);
+                      border: 1px solid rgba(255, 255, 255, 0.2);
+                    }
+                    
+                    /* Hash Background Strings */
+                    .hash-string {
+                      position: absolute;
+                      font-family: monospace;
+                      color: rgba(255, 255, 255, 0.3);
+                      font-size: 0.75rem;
+                      white-space: nowrap;
+                      pointer-events: none;
+                      z-index: 0;
+                      user-select: none;
+                      letter-spacing: 0.2em;
+                    }
                 `}
             </style>
+            
+            {/* Cinematic Background for Certificate Page */}
+            <div className="absolute inset-0 bg-gradient-to-b from-gray-900 to-black -z-10" />
 
-            <Container className="d-flex flex-column align-items-center">
+            <div className="container mx-auto px-4 max-w-6xl flex-1 flex flex-col items-center">
                 
-                <div className="w-100 d-flex justify-content-between align-items-center mb-4" style={{ maxWidth: '1056px' }}>
-                    <Button variant="outline-light" className="rounded-pill px-4" onClick={() => navigate(`/course/${courseId}`)}>
-                        &larr; Back to Workspace
-                    </Button>
-                    <Button 
-                        variant="primary" 
-                        className="rounded-pill px-4 fw-bold shadow-sm" 
+                {/* Header Actions */}
+                <motion.div 
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="w-full flex justify-between items-center mb-8" 
+                    style={{ maxWidth: '1056px' }}
+                >
+                    <button 
+                        onClick={() => navigate(`/course/${courseId}`)}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-white/5 hover:bg-white/10 text-white border border-white/10 !rounded-tl-2xl !rounded-br-2xl !rounded-tr-md !rounded-bl-md font-bold text-sm transition-all shadow-sm backdrop-blur-md"
+                    >
+                        <ArrowLeft className="w-4 h-4" /> Back to Workspace
+                    </button>
+                    <button 
                         onClick={handleDownloadPDF}
                         disabled={isDownloading}
+                        className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-blue-500 text-white !rounded-tl-2xl !rounded-br-2xl !rounded-tr-md !rounded-bl-md font-bold hover:opacity-90 transition-all shadow-lg disabled:opacity-50"
                     >
-                        {isDownloading ? 'Generating PDF...' : '⬇ Download Official PDF'}
-                    </Button>
-                </div>
+                        {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                        {isDownloading ? 'Generating High-Res PDF...' : 'Download Official PDF'}
+                    </button>
+                </motion.div>
 
-                <div className="w-100" style={{ overflowX: 'auto', display: 'flex', justifyContent: 'center', paddingBottom: '20px' }}>
-                    
+                {/* Certificate Container (Scrollable horizontally on small screens) */}
+                <motion.div 
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.2 }}
+                    className="w-full overflow-x-auto flex justify-center pb-8"
+                >
+                    {/* DO NOT TOUCH INTERNAL STYLES - CRITICAL FOR HTML2CANVAS */}
                     <div 
                         ref={certificateRef}
-                        className="shadow-lg flex-shrink-0 position-relative" 
+                        className="shadow-2xl flex-shrink-0 relative overflow-hidden bg-brutalist-grid font-inter text-white flex items-center justify-center" 
                         style={{ 
-                            width: '1056px', 
-                            height: '816px', 
-                            backgroundColor: '#F9F8F6', 
-                            color: '#2C2C2C', 
-                            overflow: 'hidden',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: '60px'
+                            width: '1188px', 
+                            height: '840px', 
                         }}
                     >
-                        <div style={{
-                            position: 'absolute',
-                            top: '-20%', left: '-10%',
-                            width: '140%', height: '140%',
-                            background: 'radial-gradient(circle at 20% 80%, rgba(0,0,0,0.02) 0%, transparent 40%), radial-gradient(circle at 80% 20%, rgba(0,0,0,0.02) 0%, transparent 40%)',
-                            zIndex: 0,
-                            pointerEvents: 'none'
-                        }}></div>
+                        {/* Unconventional Giant Logo */}
+                        <div className="absolute -bottom-20 -left-10 text-[600px] font-space font-black opacity-5 pointer-events-none z-0 leading-none select-none text-white">
+                            S
+                        </div>
+                        
+                        {/* Blockchain Hash Decorators */}
+                        <div className="hash-string top-[5%] left-[2%] transform -rotate-90 origin-left">0x8f3c...9a12</div>
+                        <div className="hash-string top-[90%] left-[2%]">tx: 0x4b219f8a3c</div>
+                        <div className="hash-string top-[15%] right-[2%] transform rotate-90 origin-right">valid_signature: true</div>
+                        <div className="hash-string bottom-[5%] right-[2%]">node_sync: [100%]</div>
 
-                        <div className="position-relative w-100 h-100 d-flex flex-column align-items-center text-center" style={{ zIndex: 1 }}>
+                        {/* Certificate Container */}
+                        <div className="relative w-full h-full flex items-center justify-center z-10">
+                            {/* Massive Background Panel */}
+                            <div className="absolute w-[120%] h-[60%] brutalist-glass -rotate-6 top-[20%] -left-[10%] z-10"></div>
                             
-                            <div className="mb-2" style={{ height: '70px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <div style={{ 
-                                    display: 'flex', 
-                                    alignItems: 'center', 
-                                    gap: '10px' 
-                                }}>
-                                    <div style={{
-                                        width: '40px', height: '40px', 
-                                        background: 'linear-gradient(135deg, #0d6efd 0%, #0dcaf0 100%)',
-                                        borderRadius: '8px',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        color: 'white', fontWeight: 'bold', fontSize: '24px', fontFamily: 'sans-serif'
-                                    }}>S</div>
-                                    <span style={{ 
-                                        fontFamily: "'Montserrat', sans-serif", 
-                                        fontWeight: 700, 
-                                        fontSize: '22px', 
-                                        color: '#0d6efd',
-                                        letterSpacing: '2px',
-                                        textTransform: 'uppercase'
-                                    }}>
-                                        SkillStream
-                                    </span>
+                            {/* Primary Foreground Panel */}
+                            <div className="absolute w-[80%] h-[75%] brutalist-glass-intense z-20 flex flex-col justify-between p-16">
+                                
+                                {/* Header Section */}
+                                <div className="flex justify-between items-start w-full">
+                                    <div className="flex flex-col gap-2">
+                                        <span className="font-inter text-xs tracking-[0.5em] uppercase text-white/50">SkillStream // System</span>
+                                        <h1 className="font-space text-5xl font-black tracking-tighter uppercase text-white leading-none">
+                                            Certificate<br/><span className="text-white/30">Completion</span>
+                                        </h1>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="font-mono text-sm text-white/40 mb-1">{certData.issued_at}</p>
+                                        <p className="font-mono text-[10px] tracking-[0.3em] uppercase text-white/30">Timestamp</p>
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div className="mt-1 mb-2">
-                                <h1 style={{ 
-                                    fontFamily: "'Alex Brush', cursive", 
-                                    fontSize: '130px', 
-                                    lineHeight: '1',
-                                    marginBottom: '-10px',
-                                    fontWeight: 'normal',
-                                    color: '#2b2b2b'
-                                }}>
-                                    Certificate
-                                </h1>
-                                <p style={{ 
-                                    fontFamily: "'Montserrat', sans-serif", 
-                                    fontSize: '16px',
-                                    letterSpacing: '10px',
-                                    fontWeight: 400,
-                                    textTransform: 'uppercase',
-                                    color: '#4a4a4a',
-                                    marginLeft: '10px' 
-                                }}>
-                                    Of Completion
-                                </p>
-                            </div>
-
-                            <div className="mt-4 mb-4">
-                                <p style={{ 
-                                    fontFamily: "'Montserrat', sans-serif", 
-                                    fontStyle: 'italic',
-                                    fontSize: '18px',
-                                    fontWeight: 300,
-                                    color: '#666'
-                                }}>
-                                    proudly presented to
-                                </p>
-                            </div>
-
-                            <div className="w-100 d-flex justify-content-center position-relative mb-4">
-                                <div style={{
-                                    position: 'absolute',
-                                    top: '65%', left: '15%', right: '15%',
-                                    height: '1px', backgroundColor: '#b0b0b0', zIndex: -1
-                                }}></div>
-                                
-                                <h2 style={{ 
-                                    fontFamily: "'Alex Brush', cursive", 
-                                    fontSize: '100px', 
-                                    fontWeight: 'normal',
-                                    color: '#1a1a1a',
-                                    backgroundColor: '#F9F8F6', 
-                                    padding: '0 40px',
-                                    lineHeight: '1'
-                                }}>
-                                    {formatName(certData.student_name)}
-                                </h2>
-                            </div>
-
-                            <div className="mt-3">
-                                <p style={{ 
-                                    fontFamily: "'Montserrat', sans-serif", 
-                                    fontStyle: 'italic',
-                                    fontSize: '18px',
-                                    fontWeight: 300,
-                                    color: '#666',
-                                    marginBottom: '15px'
-                                }}>
-                                    for successfully completing the professional training module
-                                </p>
-                                <h3 style={{
-                                    fontFamily: "'Montserrat', sans-serif",
-                                    fontSize: '22px',
-                                    fontWeight: 600,
-                                    color: '#2b2b2b',
-                                    textTransform: 'uppercase',
-                                    letterSpacing: '2px'
-                                }}>
-                                    {certData.course_title}
-                                </h3>
-                            </div>
-
-                            <div className="mt-auto w-100 d-flex justify-content-between align-items-center px-5 pb-3">
-                                
-                                <div style={{ width: '250px', textAlign: 'center' }}>
-                                    <div style={{ borderBottom: '1px solid #888', paddingBottom: '10px', marginBottom: '10px' }}>
-                                        <p style={{ 
-                                            fontFamily: "'Montserrat', sans-serif", 
-                                            fontSize: '16px', 
-                                            margin: 0,
-                                            color: '#333'
-                                        }}>
-                                            {certData.issued_at}
+                                {/* Body Section (Name & Course) */}
+                                <div className="flex flex-col w-full z-30 mt-12">
+                                    <p className="font-mono text-xs text-white/40 tracking-widest uppercase mb-4">
+                                        Verified issue to:
+                                    </p>
+                                    {/* Brutalist Typography for Name */}
+                                    <h2 className="font-space text-[90px] leading-[0.9] text-white font-bold tracking-tighter whitespace-nowrap overflow-visible">
+                                        {formatName(certData.student_name)}
+                                    </h2>
+                                    <div className="flex items-center gap-8 mt-12">
+                                        <div className="h-[1px] w-32 bg-white/30"></div>
+                                        <h3 className="font-space text-3xl tracking-widest uppercase font-bold text-white/90">
+                                            {certData.course_title}
+                                        </h3>
+                                        <p className="font-mono text-[10px] text-white/30 tracking-widest max-w-xs">
+                                            &gt; successfully executed module_completion.sh --target
                                         </p>
                                     </div>
-                                    <p style={{ 
-                                        fontFamily: "'Montserrat', sans-serif", 
-                                        fontSize: '12px', 
-                                        letterSpacing: '3px',
-                                        color: '#777',
-                                        textTransform: 'uppercase',
-                                        margin: 0
-                                    }}>
-                                        Date
-                                    </p>
                                 </div>
 
-                                <div style={{
-                                    width: '130px', height: '130px',
-                                    borderRadius: '50%', border: '1px solid #d4c4b7',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    padding: '10px', position: 'relative'
-                                }}>
-                                    <div style={{
-                                        width: '100%', height: '100%', borderRadius: '50%', border: '1px dashed #b5a496',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column'
-                                    }}>
-                                        <span style={{ fontFamily: "'Montserrat', sans-serif", fontSize: '10px', letterSpacing: '2px', color: '#8c7b6d', textTransform: 'uppercase' }}>Certified</span>
-                                        <span style={{ fontFamily: "'Montserrat', sans-serif", fontSize: '24px', fontWeight: 'bold', color: '#8c7b6d', lineHeight: '1' }}>100%</span>
-                                        <span style={{ fontFamily: "'Montserrat', sans-serif", fontSize: '8px', color: '#a39487', marginTop: '4px' }}>ID: {certData.certificate_id.substring(0,8)}</span>
+                                {/* Footer Section */}
+                                <div className="w-full flex items-end justify-between mt-auto pt-8 border-t border-white/10">
+                                    {/* Brutalist Seal */}
+                                    <div className="flex items-center gap-6">
+                                        <div className="w-24 h-24 bg-white text-[#000814] flex flex-col items-center justify-center font-bold">
+                                            <span className="text-[10px] tracking-widest uppercase mb-1">Verified</span>
+                                            <span className="text-3xl leading-none">100%</span>
+                                        </div>
+                                        <div className="flex flex-col justify-center">
+                                            <span className="font-mono text-xs text-white/50 tracking-widest">HASH</span>
+                                            <span className="font-mono text-sm text-white font-bold">{certData.certificate_id.substring(0, 10).toUpperCase()}</span>
+                                        </div>
                                     </div>
-                                </div>
-
-                                <div style={{ width: '250px', textAlign: 'center' }}>
-                                    <div style={{ borderBottom: '1px solid #888', paddingBottom: '10px', marginBottom: '10px' }}>
-                                        <p style={{ 
-                                            fontFamily: "'Alex Brush', cursive", 
-                                            fontSize: '32px', 
-                                            margin: 0,
-                                            lineHeight: '0.6',
-                                            color: '#333'
-                                        }}>
-                                            {formatName(certData.instructor)}
-                                        </p>
+                                    
+                                    {/* Signature */}
+                                    <div className="flex flex-col items-end gap-1">
+                                        <p className="font-space italic text-4xl text-white font-bold tracking-tighter">{formatName(certData.instructor)}</p>
+                                        <p className="font-mono text-[10px] text-white/40 tracking-[0.4em] uppercase">Lead_Instructor</p>
                                     </div>
-                                    <p style={{ 
-                                        fontFamily: "'Montserrat', sans-serif", 
-                                        fontSize: '12px', 
-                                        letterSpacing: '3px',
-                                        color: '#777',
-                                        textTransform: 'uppercase',
-                                        margin: 0
-                                    }}>
-                                        Lead Instructor
-                                    </p>
                                 </div>
                             </div>
+                            
+                            {/* Foreground Overlay Panel */}
+                            <div className="absolute w-[40%] h-[120%] brutalist-glass right-[5%] top-[-10%] z-30 pointer-events-none opacity-50"></div>
                         </div>
                     </div>
-                </div>
-            </Container>
+                </motion.div>
+            </div>
         </div>
     );
 };

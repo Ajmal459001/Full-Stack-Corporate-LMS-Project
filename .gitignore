@@ -11,3 +11,19 @@ __pycache__/
 node_modules/
 .env
 dist/
+
+# Database & backups
+db.sqlite3
+db_backup.sqlite3
+
+# Scratch scripts & temporary files
+check_db.py
+clean_dump.py
+datadump.json
+datadump_cleaned.json
+original_Dashboard.jsx
+
+# Unwanted directories
+certificate_design/
+benchmark_files/
+instructor_dashboard_redesign/

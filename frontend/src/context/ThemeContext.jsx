@@ -10,12 +10,14 @@ export const ThemeProvider = ({ children }) => {
     });
 
     useEffect(() => {
-        // Sync HTML data attribute and storage when theme toggles
+        // Sync HTML data attribute, CSS class for Tailwind, and storage when theme toggles
         if (isDarkMode) {
             document.documentElement.setAttribute('data-bs-theme', 'dark');
+            document.documentElement.classList.add('dark');
             localStorage.setItem('theme', 'dark');
         } else {
             document.documentElement.setAttribute('data-bs-theme', 'light');
+            document.documentElement.classList.remove('dark');
             localStorage.setItem('theme', 'light');
         }
     }, [isDarkMode]);

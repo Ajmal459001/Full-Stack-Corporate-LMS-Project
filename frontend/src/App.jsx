@@ -1,5 +1,6 @@
 import "bootstrap/dist/css/bootstrap.min.css";
 import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+import AppLayout from "./components/layout/AppLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -22,15 +23,22 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
-        {/* Protected Dashboard */}
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-              <Dashboard />
+        {/* Protected Dashboard (New Layout) */}
+        <Route element={<AppLayout />}>
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/catalog" element={
+            <ProtectedRoute allowedRoles={['ADMIN', 'INSTRUCTOR', 'EMPLOYEE']}>
+              <CourseCatalog />
             </ProtectedRoute>
-          }
-        />
+          } />
+        </Route>
 
         {/* Protected Workspace Route */}
         <Route
@@ -56,12 +64,6 @@ function App() {
         <Route path="/analytics" element={
           <ProtectedRoute allowedRoles={['ADMIN', 'INSTRUCTOR']}>
             <AnalyticsDashboard />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/catalog" element={
-          <ProtectedRoute allowedRoles={['ADMIN', 'INSTRUCTOR', 'EMPLOYEE']}>
-            <CourseCatalog />
           </ProtectedRoute>
         } />
 
